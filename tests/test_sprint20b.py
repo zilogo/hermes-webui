@@ -178,12 +178,12 @@ def test_send_pop_in_keyframes_defined():
     assert '@keyframes' in css
 
 
-def test_send_pop_in_uses_scale():
-    """send-pop-in keyframe must animate from a scaled-down state."""
-    css, _ = get_text("/static/style.css")
-    kf_idx = css.find('send-pop-in')
-    kf_start = css.rfind('@keyframes', 0, kf_idx)
-    # Find matching closing brace (simple scan)
+def _extract_keyframe(css, name):
+    """Extract the full @keyframes block for the given animation name."""
+    # Find '@keyframes <name>' directly (forward search) to avoid hitting
+    # an earlier keyframe when multiple are defined on the same line.
+    kf_start = css.find('@keyframes ' + name)
+    assert kf_start != -1, f"@keyframes {name} not found in CSS"
     depth = 0
     kf_end = kf_start
     for i, ch in enumerate(css[kf_start:], kf_start):
@@ -194,26 +194,20 @@ def test_send_pop_in_uses_scale():
             if depth == 0:
                 kf_end = i
                 break
-    kf_rule = css[kf_start:kf_end]
+    return css[kf_start:kf_end]
+
+
+def test_send_pop_in_uses_scale():
+    """send-pop-in keyframe must animate from a scaled-down state."""
+    css, _ = get_text("/static/style.css")
+    kf_rule = _extract_keyframe(css, 'send-pop-in')
     assert 'scale' in kf_rule
 
 
 def test_send_pop_in_uses_opacity():
     """send-pop-in keyframe must fade in (opacity transition)."""
     css, _ = get_text("/static/style.css")
-    kf_idx = css.find('send-pop-in')
-    kf_start = css.rfind('@keyframes', 0, kf_idx)
-    depth = 0
-    kf_end = kf_start
-    for i, ch in enumerate(css[kf_start:], kf_start):
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                kf_end = i
-                break
-    kf_rule = css[kf_start:kf_end]
+    kf_rule = _extract_keyframe(css, 'send-pop-in')
     assert 'opacity' in kf_rule
 
 
