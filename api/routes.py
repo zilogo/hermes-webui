@@ -23,7 +23,8 @@ from api.helpers import require, bad, safe_resolve, j, t, read_body, _security_h
 from api.models import (
     Session, get_session, new_session, all_sessions, title_from,
     _write_session_index, SESSION_INDEX_FILE,
-    load_projects, save_projects,
+    load_projects, save_projects, import_cli_session,
+    get_cli_sessions, get_cli_session_messages,
 )
 from api.workspace import (
     load_workspaces, save_workspaces, get_last_workspace, set_last_workspace,
@@ -151,14 +152,49 @@ def handle_get(handler, parsed):
         sid = parse_qs(parsed.query).get('session_id', [''])[0]
         if not sid:
             return j(handler, {'error': 'session_id is required'}, status=400)
-        s = get_session(sid)
-        return j(handler, {'session': s.compact() | {
-            'messages': s.messages,
-            'tool_calls': getattr(s, 'tool_calls', []),
-        }})
+        try:
+            s = get_session(sid)
+            return j(handler, {'session': s.compact() | {
+                'messages': s.messages,
+                'tool_calls': getattr(s, 'tool_calls', []),
+            }})
+        except KeyError:
+            # Not a WebUI session -- try CLI store
+            msgs = get_cli_session_messages(sid)
+            if msgs:
+                cli_meta = None
+                for cs in get_cli_sessions():
+                    if cs['session_id'] == sid:
+                        cli_meta = cs
+                        break
+                sess = {
+                    'session_id': sid,
+                    'title': (cli_meta or {}).get('title', 'CLI Session'),
+                    'workspace': (cli_meta or {}).get('workspace', ''),
+                    'model': (cli_meta or {}).get('model', 'unknown'),
+                    'message_count': len(msgs),
+                    'created_at': (cli_meta or {}).get('created_at', 0),
+                    'updated_at': (cli_meta or {}).get('updated_at', 0),
+                    'pinned': False,
+                    'archived': False,
+                    'project_id': None,
+                    'profile': (cli_meta or {}).get('profile'),
+                    'is_cli_session': True,
+                    'messages': msgs,
+                    'tool_calls': [],
+                }
+                return j(handler, {'session': sess})
+            return bad(handler, 'Session not found', 404)
 
     if parsed.path == '/api/sessions':
-        return j(handler, {'sessions': all_sessions()})
+        webui_sessions = all_sessions()
+        cli = get_cli_sessions()
+        # Deduplicate: WebUI sessions always win if same session_id
+        webui_ids = {s['session_id'] for s in webui_sessions}
+        deduped_cli = [s for s in cli if s['session_id'] not in webui_ids]
+        merged = webui_sessions + deduped_cli
+        merged.sort(key=lambda s: s.get('updated_at', 0) or 0, reverse=True)
+        return j(handler, {'sessions': merged, 'cli_count': len(deduped_cli)})
 
     if parsed.path == '/api/projects':
         return j(handler, {'projects': load_projects()})
@@ -541,6 +577,10 @@ def handle_post(handler, parsed):
     # ── Session import from JSON (POST) ──
     if parsed.path == '/api/session/import':
         return _handle_session_import(handler, body)
+
+    # ── CLI session import (POST) ──
+    if parsed.path == '/api/session/import_cli':
+        return _handle_session_import_cli(handler, body)
 
     # ── Auth endpoints (POST) ──
     if parsed.path == '/api/auth/login':
@@ -1171,6 +1211,53 @@ def _handle_memory_write(handler, body):
         return bad(handler, 'section must be "memory" or "user"')
     target.write_text(body['content'], encoding='utf-8')
     return j(handler, {'ok': True, 'section': section, 'path': str(target)})
+
+
+def _handle_session_import_cli(handler, body):
+    """Import a single CLI session into the WebUI store."""
+    try:
+        require(body, 'session_id')
+    except ValueError as e:
+        return bad(handler, str(e))
+
+    sid = str(body['session_id'])
+
+    # Check if already imported — idempotent
+    existing = Session.load(sid)
+    if existing:
+        return j(handler, {'session': existing.compact() | {
+            'messages': existing.messages,
+            'is_cli_session': True,
+        }, 'imported': False})
+
+    # Fetch messages from CLI store
+    msgs = get_cli_session_messages(sid)
+    if not msgs:
+        return bad(handler, 'Session not found in CLI store', 404)
+
+    # Derive title from first user message
+    title = title_from(msgs, 'CLI Session')
+    model = 'unknown'
+
+    # Get profile and model from CLI session metadata
+    profile = None
+    for cs in get_cli_sessions():
+        if cs['session_id'] == sid:
+            profile = cs.get('profile')
+            model = cs.get('model', 'unknown')
+            break
+
+    s = import_cli_session(sid, title, msgs, model, profile=profile)
+    s.is_cli_session = True
+    s._cli_origin = sid
+    s.save()
+    return j(handler, {
+        'session': s.compact() | {
+            'messages': msgs,
+            'is_cli_session': True,
+        },
+        'imported': True,
+    })
 
 
 def _handle_session_import(handler, body):

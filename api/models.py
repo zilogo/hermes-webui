@@ -10,7 +10,7 @@ from pathlib import Path
 import api.config as _cfg
 from api.config import (
     SESSION_DIR, SESSION_INDEX_FILE, SESSIONS, SESSIONS_MAX,
-    LOCK, DEFAULT_WORKSPACE, DEFAULT_MODEL, PROJECTS_FILE
+    LOCK, DEFAULT_WORKSPACE, DEFAULT_MODEL, PROJECTS_FILE, HOME
 )
 from api.workspace import get_last_workspace
 
@@ -192,3 +192,130 @@ def load_projects():
 def save_projects(projects):
     """Write project list to disk."""
     PROJECTS_FILE.write_text(json.dumps(projects, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
+def import_cli_session(session_id, title, messages, model='unknown', profile=None):
+    """Create a new WebUI session populated with CLI messages.
+    Returns the Session object.
+    """
+    s = Session(
+        session_id=session_id,
+        title=title,
+        workspace=get_last_workspace(),
+        model=model,
+        messages=messages,
+        profile=profile,
+    )
+    s.save()
+    return s
+
+
+# ── CLI session bridge ──────────────────────────────────────────────────────
+
+def get_cli_sessions():
+    """Read CLI sessions from the agent's SQLite store and return them as
+    dicts in a format the WebUI sidebar can render alongside local sessions.
+
+    Returns empty list if the SQLite DB is missing, the sqlite3 module is
+    unavailable, or any error occurs -- the bridge is purely additive and never
+    crashes the WebUI.
+    """
+    import os
+    cli_sessions = []
+    try:
+        import sqlite3
+    except ImportError:
+        return cli_sessions
+
+    hermes_home = Path(os.getenv('HERMES_HOME', str(HOME / '.hermes'))).expanduser()
+    db_path = hermes_home / 'state.db'
+    if not db_path.exists():
+        return cli_sessions
+
+    # Try to resolve the active CLI profile so imported sessions integrate
+    # with the WebUI profile filter (available since Sprint 22).
+    try:
+        from api.profiles import get_active_profile_name
+        _cli_profile = get_active_profile_name()
+    except ImportError:
+        _cli_profile = None  # older agent -- fall back to no profile
+
+    try:
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT s.id, s.title, s.model, s.message_count,
+                       s.started_at, s.source, s.profile,
+                       MAX(m.timestamp) AS last_activity
+                FROM sessions s
+                LEFT JOIN messages m ON m.session_id = s.id
+                GROUP BY s.id
+                ORDER BY COALESCE(MAX(m.timestamp), s.started_at) DESC
+                LIMIT 200
+            """)
+            for row in cur.fetchall():
+                sid = row['id']
+                raw_ts = row['last_activity'] or row['started_at']
+                # Prefer the CLI session's own profile from the DB; fall back to
+                # the active CLI profile so sidebar filtering works either way.
+                profile = row.get('profile') or _cli_profile
+
+                cli_sessions.append({
+                    'session_id': sid,
+                    'title': row['title'] or 'CLI Session',
+                    'workspace': str(get_last_workspace()),
+                    'model': row['model'] or 'unknown',
+                    'message_count': row['message_count'] or 0,
+                    'created_at': row['started_at'],
+                    'updated_at': raw_ts,
+                    'pinned': False,
+                    'archived': False,
+                    'project_id': None,
+                    'profile': profile,
+                    'source_tag': 'cli',
+                    'is_cli_session': True,
+                })
+    except Exception:
+        # DB schema changed, locked, or corrupted -- silently degrade
+        return []
+
+    return cli_sessions
+
+
+def get_cli_session_messages(sid):
+    """Read messages for a single CLI session from the SQLite store.
+    Returns a list of {role, content, timestamp} dicts.
+    Returns empty list on any error.
+    """
+    import os
+    try:
+        import sqlite3
+    except ImportError:
+        return []
+
+    hermes_home = Path(os.getenv('HERMES_HOME', str(HOME / '.hermes'))).expanduser()
+    db_path = hermes_home / 'state.db'
+    if not db_path.exists():
+        return []
+
+    try:
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT role, content, timestamp
+                FROM messages
+                WHERE session_id = ?
+                ORDER BY timestamp ASC
+            """, (sid,))
+            msgs = []
+            for row in cur.fetchall():
+                msgs.append({
+                    'role': row['role'],
+                    'content': row['content'],
+                    'timestamp': row['timestamp'],
+                })
+    except Exception:
+        return []
+    return msgs
