@@ -221,6 +221,7 @@ function _gatewayControlReason(control) {
 function _gatewayScopeText(scope) {
   if (scope === 'system') return _channelsText('channels_gateway_scope_system', 'System')
   if (scope === 'user') return _channelsText('channels_gateway_scope_user', 'User')
+  if (scope === 'container') return _channelsText('channels_gateway_scope_container', 'Container')
   return _channelsText('channels_not_available', 'Not available')
 }
 

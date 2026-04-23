@@ -42,6 +42,14 @@ def _launchd_plist_path(profile_name: str) -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"ai.hermes.gateway{suffix}.plist"
 
 
+def _within_container() -> bool:
+    return Path("/.within_container").exists()
+
+
+def _supervisor_conf_path() -> Path:
+    return Path("/opt/hermes/hermes-webui/docker/supervisord.combined.conf")
+
+
 def _python_available(python_exe: str) -> bool:
     if not python_exe:
         return False
@@ -114,6 +122,23 @@ def get_gateway_control_capability() -> dict[str, Any]:
             reason_key="channels_gateway_control_missing_python",
             reason="This WebUI instance cannot find the configured Hermes Python runtime.",
             service_name=service_name,
+        )
+
+    if _within_container():
+        supervisor_conf = _supervisor_conf_path()
+        return _reason_payload(
+            available=False,
+            reason_key="channels_gateway_control_container_managed",
+            reason=(
+                "This WebUI is running inside a container. Gateway status is "
+                "read-only in this mode; host-service start/restart controls "
+                "are disabled until container-native supervisor actions are wired."
+            ),
+            manager="supervisor",
+            scope="container",
+            service_name="gateway",
+            service_path=supervisor_conf,
+            service_installed=supervisor_conf.exists(),
         )
 
     if sys.platform == "darwin":
