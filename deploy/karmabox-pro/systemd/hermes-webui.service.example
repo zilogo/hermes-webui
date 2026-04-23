@@ -1,0 +1,15 @@
+[Unit]
+Description=Hermes WebUI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/karmabox_pro/env.systemd
+WorkingDirectory=/opt/hermes/hermes-webui
+ExecStart=/opt/hermes/hermes-agent/.venv/bin/python /opt/hermes/hermes-webui/server.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

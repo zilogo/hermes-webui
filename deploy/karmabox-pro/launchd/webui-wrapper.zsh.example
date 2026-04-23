@@ -1,0 +1,6 @@
+#!/bin/zsh
+set -euo pipefail
+
+source "$HOME/.config/karmabox_pro/env.sh"
+
+exec "$HERMES_WEBUI_PYTHON" "$HERMES_WEBUI_DIR/server.py"
