@@ -51,6 +51,9 @@
   :root:not(.dark) .app-dialog-input{
     background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.2);
   }
+  :root:not(.dark) .app-dialog-check{
+    background:rgba(0,0,0,.03);border-color:rgba(0,0,0,.14);
+  }
   :root:not(.dark) .app-dialog-input:focus{
     border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);
   }
@@ -224,6 +227,8 @@
   .app-dialog-close{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:none;border-radius:10px;background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer;transition:background .15s,color .15s;}
   .app-dialog-close:hover{background:rgba(255,255,255,.09);color:var(--text);}
   .app-dialog-desc{font-size:13px;line-height:1.6;color:var(--muted);white-space:pre-wrap;}
+  .app-dialog-check{display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:12px 13px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:12px;font-size:13px;line-height:1.5;color:var(--text);}
+  .app-dialog-check input{margin-top:2px;accent-color:var(--accent);flex:0 0 auto;}
   .app-dialog-input{width:100%;margin-top:14px;padding:11px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box;}
   .app-dialog-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);}
   .app-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap;}

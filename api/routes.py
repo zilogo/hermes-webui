@@ -569,6 +569,15 @@ def handle_get(handler, parsed) -> bool:
     if parsed.path == "/api/onboarding/status":
         return j(handler, get_onboarding_status())
 
+    if (
+        parsed.path == "/api/gateway/status"
+        or parsed.path == "/api/channels"
+        or parsed.path.startswith("/api/channels/")
+    ):
+        from api.channels import handle_get as _handle_channels_get
+
+        return _handle_channels_get(handler, parsed)
+
     if parsed.path.startswith("/static/"):
         return _serve_static(handler, parsed)
 
@@ -889,6 +898,16 @@ def handle_post(handler, parsed) -> bool:
         return handle_transcribe(handler)
 
     body = read_body(handler)
+
+    if (
+        parsed.path in {"/api/gateway/start", "/api/gateway/restart", "/api/channels/weixin/qr/start"}
+        or parsed.path.startswith("/api/channels/")
+    ):
+        from api.channels import handle_post as _handle_channels_post
+
+        result = _handle_channels_post(handler, parsed, body)
+        if result is not False:
+            return result
 
     if parsed.path == "/api/session/new":
         try:
@@ -1528,6 +1547,19 @@ def handle_post(handler, parsed) -> bool:
         handler.end_headers()
         handler.wfile.write(json.dumps({"ok": True}).encode())
         return True
+
+    return False  # 404
+
+
+def handle_delete(handler, parsed) -> bool:
+    """Handle DELETE routes. Returns True if handled, False for 404."""
+    if not _check_csrf(handler):
+        return j(handler, {"error": "Cross-origin request rejected"}, status=403)
+
+    if parsed.path.startswith("/api/channels/"):
+        from api.channels import handle_delete as _handle_channels_delete
+
+        return _handle_channels_delete(handler, parsed)
 
     return False  # 404
 

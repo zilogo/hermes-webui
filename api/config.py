@@ -321,6 +321,8 @@ def print_startup_config() -> None:
     ok = "\033[32m[ok]\033[0m"
     warn = "\033[33m[!!]\033[0m"
     err = "\033[31m[XX]\033[0m"
+    runtime_python = str(Path(sys.executable).expanduser().resolve())
+    launcher_python = str(Path(PYTHON_EXE).expanduser().resolve()) if PYTHON_EXE else ""
 
     lines = [
         "",
@@ -328,13 +330,15 @@ def print_startup_config() -> None:
         "  --------------------------------",
         f"  repo root   : {REPO_ROOT}",
         f"  agent dir   : {_AGENT_DIR if _AGENT_DIR else 'NOT FOUND'}  {ok if _AGENT_DIR else err}",
-        f"  python      : {PYTHON_EXE}",
+        f"  python rt   : {runtime_python}",
         f"  state dir   : {STATE_DIR}",
         f"  workspace   : {DEFAULT_WORKSPACE}",
         f"  host:port   : {HOST}:{PORT}",
         f"  config file : {_get_config_path()}  {'(found)' if _get_config_path().exists() else '(not found, using defaults)'}",
         "",
     ]
+    if launcher_python and launcher_python != runtime_python:
+        lines.insert(5, f"  python hint : {launcher_python}  {warn}")
     print("\n".join(lines), flush=True)
 
     if not _HERMES_FOUND:
@@ -369,6 +373,40 @@ def verify_hermes_imports() -> tuple:
             # (e.g. pydantic_core .so mismatch) instead of just the name.
             errors[mod] = f"{type(e).__name__}: {e}"
     return (len(missing) == 0), missing, errors
+
+
+def get_hermes_import_hint() -> str:
+    """Return a human-readable hint for common Hermes import failures."""
+    if _AGENT_DIR is None:
+        return (
+            "Hermes agent source was not found. Set HERMES_WEBUI_AGENT_DIR or "
+            "HERMES_HOME so the WebUI can import hermes-agent."
+        )
+
+    runtime_python = str(Path(sys.executable).expanduser().resolve())
+    configured_python = os.getenv("HERMES_WEBUI_PYTHON", "").strip()
+    if configured_python:
+        configured_python = str(Path(configured_python).expanduser().resolve())
+        if configured_python != runtime_python:
+            return (
+                f"The current WebUI process is running under {runtime_python}, but "
+                f"HERMES_WEBUI_PYTHON points to {configured_python}. Restart with "
+                "`./start.sh` or launch the server with that interpreter."
+            )
+
+    launcher_python = str(Path(PYTHON_EXE).expanduser().resolve()) if PYTHON_EXE else ""
+    if launcher_python and launcher_python != runtime_python:
+        return (
+            f"The current WebUI process is running under {runtime_python}. The "
+            f"detected Hermes-capable Python is {launcher_python}. Restart with "
+            "`./start.sh` if this interpreter is missing hermes-agent packages."
+        )
+
+    return (
+        f"The current WebUI process is running under {runtime_python}. Install the "
+        "missing hermes-agent Python dependencies into this interpreter or restart "
+        "the WebUI with the hermes-agent virtualenv."
+    )
 
 
 # ── Limits ───────────────────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ from api.auth import check_auth
 from api.config import HOST, PORT, STATE_DIR, SESSION_DIR, DEFAULT_WORKSPACE
 from api.helpers import j, get_profile_cookie
 from api.profiles import set_request_profile, clear_request_profile
-from api.routes import handle_get, handle_post
+from api.routes import handle_delete, handle_get, handle_post
 from api.startup import auto_install_agent_deps, fix_credential_permissions
 from api.updates import WEBUI_VERSION
 
@@ -99,9 +99,32 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             clear_request_profile()
 
+    def do_DELETE(self) -> None:
+        self._req_t0 = time.time()
+        cookie_profile = get_profile_cookie(self)
+        if cookie_profile:
+            set_request_profile(cookie_profile)
+        try:
+            parsed = urlparse(self.path)
+            if not check_auth(self, parsed):
+                return
+            result = handle_delete(self, parsed)
+            if result is False:
+                return j(self, {"error": "not found"}, status=404)
+        except Exception:
+            print(f'[webui] ERROR {self.command} {self.path}\n' + traceback.format_exc(), flush=True)
+            return j(self, {'error': 'Internal server error'}, status=500)
+        finally:
+            clear_request_profile()
+
 
 def main() -> None:
-    from api.config import print_startup_config, verify_hermes_imports, _HERMES_FOUND
+    from api.config import (
+        _HERMES_FOUND,
+        get_hermes_import_hint,
+        print_startup_config,
+        verify_hermes_imports,
+    )
 
     print_startup_config()
 
@@ -138,6 +161,7 @@ def main() -> None:
         print(f'[!!] Warning: Hermes agent found but missing modules: {missing}', flush=True)
         for mod, err in errors.items():
             print(f'     {mod}: {err}', flush=True)
+        print(f'     {get_hermes_import_hint()}', flush=True)
         print('     Attempting to install missing dependencies from agent requirements.txt...', flush=True)
         auto_install_agent_deps()
         ok, missing, errors = verify_hermes_imports()
@@ -145,6 +169,7 @@ def main() -> None:
             print(f'[!!] Still missing after install attempt: {missing}', flush=True)
             for mod, err in errors.items():
                 print(f'     {mod}: {err}', flush=True)
+            print(f'     {get_hermes_import_hint()}', flush=True)
             print('     Agent features may not work correctly.', flush=True)
         else:
             print('[ok] Agent dependencies installed successfully.', flush=True)

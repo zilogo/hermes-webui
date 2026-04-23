@@ -8,10 +8,10 @@
 > Prerequisites: SSH tunnel is active on port 8787. Open http://localhost:8787 in browser.
 > Server health check: curl http://127.0.0.1:8787/health should return {"status":"ok"}.
 >
-> Automated coverage: 1777 tests collected via `pytest tests/ --collect-only -q`. Includes onboarding coverage for bootstrap/static wizard presence, real provider config persistence (`config.yaml` + `.env`), the `/api/onboarding/*` backend, the onboarding skip/existing-config guard, and CSS regression coverage for smooth thinking/tool card disclosure animation.
+> Automated coverage: 1777 tests collected via `pytest tests/ --collect-only -q`. Includes onboarding coverage for bootstrap/static wizard presence, real provider config persistence (`config.yaml` + `.env`), the `/api/onboarding/*` backend, the onboarding skip/existing-config guard, CSS regression coverage for smooth thinking/tool card disclosure animation, and targeted Channels unit/static coverage for redaction, env locking, gateway PID parsing, profile isolation, and frontend wiring.
 > Run: `pytest tests/ -v --timeout=60`
 >
-> Local regression focus: verify that a previously closed workspace panel stays visually closed from first paint through boot completion on desktop refresh; there should be no brief open-then-close flash.
+> Local regression focus: verify that a previously closed workspace panel stays visually closed from first paint through boot completion on desktop refresh; there should be no brief open-then-close flash. Also verify the Channels tab is disabled whenever auth is off, profile switches do not leak channel secrets across `.env` files, and Weixin QR flow survives SSE status updates without exposing raw backend HTML.
 
 ---
 
@@ -1746,6 +1746,17 @@ Each has automated API-level tests in `tests/test_sprint{N}.py`.
 - Delete profile → confirmation modal. Auto-switches to default if deleting active.
 - Attempt switch while agent busy → blocked with toast message.
 - With hermes-agent not installed → only default profile shown, graceful fallback.
+
+### Channels Panel
+- Enable password auth in Settings, refresh, and confirm the sidebar now shows an enabled `Channels` tab.
+- Disable auth again and confirm the tab greys out, clicking it only shows a toast, and direct panel rendering shows the locked state instead of provider forms.
+- Open `Channels` with auth enabled: the subtitle shows the active profile name plus `HERMES_HOME`, and the gateway card shows PID / platforms / last update plus `Start` / `Restart` controls when the current profile's service manager is supported and the gateway service is installed.
+- Save Telegram fields, refresh the panel, and confirm values reload from the active profile's `.env`; secret tokens must return masked, not raw.
+- Switch to another profile, open `Channels`, and confirm the first profile's Telegram/Feishu/Weixin values do not appear. Switch back and confirm the original values are still there.
+- Use the Feishu test button with valid or intentionally invalid credentials and confirm the result surfaces as a toast sourced from the backend response.
+- On the first Weixin QR start for a given profile, confirm the UI blocks on an iLink risk modal, requires the checkbox before the confirm button enables, and remembers the acknowledgement in later attempts for the same profile only.
+- On a host with Weixin gateway deps installed, start the QR flow and verify the QR renders locally in the browser, status transitions through wait/scanned/confirmed or expired, and successful confirmation writes `WEIXIN_ACCOUNT_ID`, `WEIXIN_TOKEN`, and `WEIXIN_BASE_URL` into the active profile's `.env`.
+- Confirm remote browser access still works for the Channels panel: save/test/delete requests succeed with auth enabled, and the panel shows the remote-session warning banner.
 
 ---
 

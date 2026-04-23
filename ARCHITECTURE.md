@@ -9,7 +9,7 @@
 
 > Current shipped build: `v0.50.36-local.1` (April 16, 2026).
 > Baseline: upstream `nesquena/hermes-webui` `v0.50.36`.
-> Intentional local delta: first-time password enablement from Settings immediately issues a `hermes_session` cookie so the current browser remains signed in. The previous `Assistant Reply Language` customization has been removed, legacy `assistant_language` settings are filtered out on load/save, the workspace panel closed/open state is preloaded via a `documentElement` dataset marker before `style.css` paints to avoid a first-load desktop flash, transcript disclosure cards now animate caret rotation and body expansion with transitionable `max-height`/`opacity` states instead of `display:none/block`, and thinking cards now share the same rounded bordered card chrome as tool cards while keeping their gold palette.
+> Intentional local delta: first-time password enablement from Settings immediately issues a `hermes_session` cookie so the current browser remains signed in. The previous `Assistant Reply Language` customization has been removed, legacy `assistant_language` settings are filtered out on load/save, the workspace panel closed/open state is preloaded via a `documentElement` dataset marker before `style.css` paints to avoid a first-load desktop flash, transcript disclosure cards now animate caret rotation and body expansion with transitionable `max-height`/`opacity` states instead of `display:none/block`, thinking cards now share the same rounded bordered card chrome as tool cards while keeping their gold palette, and a Channels panel now exposes profile-scoped Telegram / Feishu / Weixin configuration, profile-aware gateway status plus start/restart controls, and Weixin QR login over SSE.
 > Automated coverage: 1353 tests collected (`pytest tests/ --collect-only -q`).
 
 ---
@@ -30,7 +30,7 @@ and `static/boot.js` keeps the dataset synchronized with the runtime panel state
 
 The design philosophy is deliberately minimal. There is no build step, no bundler, no
 frontend framework. The Python server is split into a routing shell (server.py) and
-business logic modules (api/). The frontend is seven vanilla JS modules loaded from static/.
+business logic modules (api/). The frontend is modular vanilla JS loaded from static/, now including a dedicated `channels.js` surface for auth-gated messaging setup.
 This makes the code easy to modify from a terminal or by an agent.
 
 For the current local build, the codebase is intentionally as close to upstream as possible:
@@ -58,6 +58,7 @@ actions. The topbar remains focused on conversation context and the workspace/fi
     api/
       __init__.py          Package marker
       auth.py              Optional password authentication, signed cookies (~149 lines)
+      channels/            Channel providers, profile-scoped `.env` IO, gateway view, Weixin QR SSE helpers.
       config.py            Discovery, globals, model detection, reloadable config (~701 lines)
       helpers.py           HTTP helpers: j(), bad(), require(), safe_resolve(), security headers (~71 lines)
       models.py            Session model + CRUD, per-session profile tracking (~137 lines)
@@ -71,14 +72,17 @@ actions. The topbar remains focused on conversation context and the workspace/fi
     static/
       index.html           HTML template (~364 lines)
       style.css            All CSS incl. mobile responsive (~670 lines)
+      channels.css         Channels panel styling, gateway card chrome, QR states.
       ui.js                DOM helpers, renderMd, tool cards, model dropdown, file tree (~977 lines)
       workspace.js         File preview, file ops, loadDir, clearPreview (~185 lines)
       sessions.js          Session CRUD, list rendering, search, SVG icons, dropdown actions (~533 lines)
       messages.js          send(), SSE event handlers, approval, transcript (~297 lines)
       panels.js            Cron, skills, memory, workspace, profiles, todo, settings (~974 lines)
+      channels.js          Channels panel state, auth gating, provider forms, Weixin QR EventSource flow.
       commands.js          Slash command registry, parser, autocomplete dropdown (~156 lines)
       onboarding.js        First-run wizard overlay, provider setup flow, and settings/workspace orchestration.
       boot.js              Event wiring, mobile sidebar/workspace nav, voice input, boot IIFE (~338 lines)
+      vendor/qrcode.min.js Vendored QR renderer used to draw Weixin scan URLs locally in-browser.
     tests/
       conftest.py          Isolated test server (port 8788, separate HERMES_HOME) (~240 lines)
       test_sprint{1-20b}.py Feature tests per sprint (21 files, 415 test functions)
@@ -179,6 +183,40 @@ The /api/upload check MUST appear BEFORE calling read_body(). read_body() calls
 handler.rfile.read() which consumes the HTTP body stream. The upload handler also
 needs rfile (to read the multipart payload). If read_body() runs first on a multipart
 request, the upload handler receives an empty body and the upload silently fails.
+
+### 4.1.1 Channels Configuration Surface
+
+The Channels panel introduces a small backend package under `api/channels/` instead of
+growing more ad-hoc route logic in `api/routes.py`. The routing shell now dispatches:
+
+    GET    /api/channels
+    GET    /api/channels/<provider>
+    POST   /api/channels/<provider>/save
+    POST   /api/channels/<provider>/test
+    DELETE /api/channels/<provider>
+    GET    /api/gateway/status
+    POST   /api/gateway/start
+    POST   /api/gateway/restart
+    POST   /api/channels/weixin/qr/start
+    GET    /api/channels/weixin/qr/stream
+
+Important design decisions:
+
+- Channels are explicitly auth-gated even if the rest of the app runs without a password.
+  `api/channels/base.py::ensure_channels_allowed()` returns a 403 JSON error when auth
+  is disabled, and the frontend mirrors that by greying out the tab.
+- Channel secrets are stored in the active profile's `.env`, not in `settings.json`.
+  `api/channels/env_io.py` writes with a lock file, atomic replace, and `0600` perms.
+- Remote validation uses stdlib `urllib.request` + `ssl` instead of introducing a new
+  async HTTP dependency. Telegram and Feishu tests stay dependency-light.
+- `/api/gateway/status` remains the runtime status source of truth, while
+  `/api/gateway/start` and `/api/gateway/restart` proxy fixed Hermes CLI actions.
+  Control is intentionally limited: the current WebUI runtime only exposes
+  `start` / `restart`, requires auth to be enabled, and only works on hosts where
+  the target profile already has a launchd or systemd gateway service installed.
+- Weixin QR login is split into a start call plus SSE polling stream. The backend never
+  sends browser-ready HTML for the QR; it returns only scan data and the browser renders
+  the code locally with `static/vendor/qrcode.min.js`.
 
 ### 4.2 Session Model
 

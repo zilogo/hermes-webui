@@ -818,7 +818,7 @@ function showToast(msg,ms){const el=$('toast');el.textContent=msg;el.classList.a
 // throughout the UI. Both return Promises and support: title, message, confirmLabel,
 // cancelLabel, danger (confirm only), placeholder/value/inputType (prompt only).
 
-const APP_DIALOG={resolve:null,kind:null,lastFocus:null};
+const APP_DIALOG={resolve:null,kind:null,lastFocus:null,requireCheckbox:false};
 let _appDialogBound=false;
 
 function _isAppDialogOpen(){
@@ -827,24 +827,38 @@ function _isAppDialogOpen(){
 }
 
 function _getAppDialogFocusable(){
-  return [$('appDialogInput'), $('appDialogCancel'), $('appDialogConfirm'), $('appDialogClose')]
+  return [$('appDialogInput'), $('appDialogCheck'), $('appDialogCancel'), $('appDialogConfirm'), $('appDialogClose')]
     .filter(el=>el&&el.style.display!=='none'&&!el.disabled);
+}
+
+function _syncAppDialogConfirmDisabled(){
+  const confirmBtn=$('appDialogConfirm');
+  const check=$('appDialogCheck');
+  if(!confirmBtn) return;
+  confirmBtn.disabled=!!(APP_DIALOG.requireCheckbox&&check&&!check.checked);
 }
 
 function _finishAppDialog(result, restoreFocus=true){
   const overlay=$('appDialogOverlay');
   const dialog=$('appDialog');
   const input=$('appDialogInput');
+  const checkWrap=$('appDialogCheckWrap');
+  const check=$('appDialogCheck');
+  const checkLabel=$('appDialogCheckLabel');
   const confirmBtn=$('appDialogConfirm');
   const resolve=APP_DIALOG.resolve;
   const lastFocus=APP_DIALOG.lastFocus;
   APP_DIALOG.resolve=null;
   APP_DIALOG.kind=null;
   APP_DIALOG.lastFocus=null;
+  APP_DIALOG.requireCheckbox=false;
   if(overlay){overlay.style.display='none';overlay.setAttribute('aria-hidden','true');}
   if(dialog) dialog.setAttribute('role','dialog');
   if(input){input.value='';input.style.display='none';input.placeholder='';}
-  if(confirmBtn){confirmBtn.classList.remove('danger');confirmBtn.textContent=t('dialog_confirm_btn');}
+  if(check){check.checked=false;check.style.display='none';}
+  if(checkWrap){checkWrap.style.display='none';}
+  if(checkLabel){checkLabel.textContent='';}
+  if(confirmBtn){confirmBtn.classList.remove('danger');confirmBtn.textContent=t('dialog_confirm_btn');confirmBtn.disabled=false;}
   if(restoreFocus&&lastFocus&&typeof lastFocus.focus==='function'){setTimeout(()=>lastFocus.focus(),0);}
   if(resolve) resolve(result);
 }
@@ -856,6 +870,7 @@ function _ensureAppDialogBindings(){
   const cancelBtn=$('appDialogCancel');
   const confirmBtn=$('appDialogConfirm');
   const closeBtn=$('appDialogClose');
+  const check=$('appDialogCheck');
   if(overlay){
     overlay.addEventListener('click',e=>{
       if(e.target===overlay) _finishAppDialog(APP_DIALOG.kind==='prompt'?null:false);
@@ -873,6 +888,7 @@ function _ensureAppDialogBindings(){
       }
     });
   }
+  if(check) check.addEventListener('change',_syncAppDialogConfirmDisabled);
   document.addEventListener('keydown',e=>{
     if(!_isAppDialogOpen()) return;
     if(e.key==='Escape'){
@@ -914,21 +930,33 @@ function showConfirmDialog(opts={}){
   _ensureAppDialogBindings();
   if(APP_DIALOG.resolve) _finishAppDialog(false,false);
   const overlay=$('appDialogOverlay'),dialog=$('appDialog'),title=$('appDialogTitle'),
-    desc=$('appDialogDesc'),input=$('appDialogInput'),cancelBtn=$('appDialogCancel'),confirmBtn=$('appDialogConfirm');
-  APP_DIALOG.resolve=null;APP_DIALOG.kind='confirm';APP_DIALOG.lastFocus=document.activeElement;
+    desc=$('appDialogDesc'),input=$('appDialogInput'),checkWrap=$('appDialogCheckWrap'),
+    check=$('appDialogCheck'),checkLabel=$('appDialogCheckLabel'),
+    cancelBtn=$('appDialogCancel'),confirmBtn=$('appDialogConfirm');
+  APP_DIALOG.resolve=null;APP_DIALOG.kind='confirm';APP_DIALOG.lastFocus=document.activeElement;APP_DIALOG.requireCheckbox=!!opts.requireCheckbox;
   if(title) title.textContent=opts.title||t('dialog_confirm_title');
   if(desc) desc.textContent=opts.message||'';
   if(input){input.style.display='none';input.value='';}
+  if(check&&checkWrap&&checkLabel){
+    check.checked=!!opts.checkboxChecked;
+    checkLabel.textContent=opts.checkboxLabel||'';
+    check.style.display=opts.checkboxLabel?'':'none';
+    checkWrap.style.display=opts.checkboxLabel?'':'none';
+  }
   if(cancelBtn) cancelBtn.textContent=opts.cancelLabel||t('cancel');
   if(confirmBtn){
     confirmBtn.textContent=opts.confirmLabel||t('dialog_confirm_btn');
     confirmBtn.classList.toggle('danger',!!opts.danger);
   }
+  _syncAppDialogConfirmDisabled();
   if(dialog) dialog.setAttribute('role',opts.danger?'alertdialog':'dialog');
   if(overlay){overlay.style.display='flex';overlay.setAttribute('aria-hidden','false');}
   return new Promise(resolve=>{
     APP_DIALOG.resolve=resolve;
-    setTimeout(()=>((opts.focusCancel?cancelBtn:confirmBtn)||confirmBtn||cancelBtn).focus(),0);
+    setTimeout(()=>{
+      if(opts.focusCheckbox&&check&&check.style.display!=='none') check.focus();
+      else ((opts.focusCancel?cancelBtn:confirmBtn)||confirmBtn||cancelBtn).focus();
+    },0);
   });
 }
 

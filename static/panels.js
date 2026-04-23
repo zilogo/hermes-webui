@@ -2,6 +2,13 @@ let _currentPanel = 'chat';
 let _skillsData = null; // cached skills list
 
 async function switchPanel(name) {
+  if (name === 'channels' && window._channelsAvailable === false) {
+    showToast(_channelsText('channels_requires_auth', 'Channels require auth'))
+    return
+  }
+  if (_currentPanel === 'channels' && name !== 'channels' && typeof stopChannelsPolling === 'function') {
+    stopChannelsPolling()
+  }
   _currentPanel = name;
   // Update nav tabs
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
@@ -14,6 +21,7 @@ async function switchPanel(name) {
   if (name === 'skills') await loadSkills();
   if (name === 'memory') await loadMemory();
   if (name === 'workspaces') await loadWorkspacesPanel();
+  if (name === 'channels' && typeof loadChannelsPanel === 'function') await loadChannelsPanel();
   if (name === 'profiles') await loadProfilesPanel();
   if (name === 'todos') loadTodos();
 }
@@ -1005,9 +1013,11 @@ async function switchToProfile(name) {
     }
 
     // ── Sidebar panels ─────────────────────────────────────────────────────
+    if (typeof resetChannelsPanelState === 'function') resetChannelsPanelState();
     if (_currentPanel === 'skills') await loadSkills();
     if (_currentPanel === 'memory') await loadMemory();
     if (_currentPanel === 'tasks') await loadCrons();
+    if (_currentPanel === 'channels' && typeof loadChannelsPanel === 'function') await loadChannelsPanel();
     if (_currentPanel === 'profiles') await loadProfilesPanel();
     if (_currentPanel === 'workspaces') await loadWorkspacesPanel();
 
@@ -1350,6 +1360,7 @@ function _applySavedSettingsUi(saved, body, opts){
     if(showCliSessions) startGatewaySSE();
     else if(typeof stopGatewaySSE==='function') stopGatewaySSE();
   }
+  if(typeof setChannelsAvailability==='function') setChannelsAvailability(!!saved.auth_enabled);
   _setSettingsAuthButtonsVisible(!!saved.auth_enabled);
   _settingsDirty=false;
   _settingsThemeOnOpen=theme;
@@ -1360,6 +1371,7 @@ function _applySavedSettingsUi(saved, body, opts){
   renderMessages();
   if(typeof syncTopbar==='function') syncTopbar();
   if(typeof renderSessionList==='function') renderSessionList();
+  if(_currentPanel==='channels'&&typeof loadChannelsPanel==='function') loadChannelsPanel(true);
 }
 
 async function saveSettings(andClose){
@@ -1445,6 +1457,8 @@ async function disableAuth(){
     if(disableBtn) disableBtn.style.display='none';
     const signOutBtn=$('btnSignOut');
     if(signOutBtn) signOutBtn.style.display='none';
+    if(typeof setChannelsAvailability==='function') setChannelsAvailability(false);
+    if(_currentPanel==='channels'&&typeof loadChannelsPanel==='function') loadChannelsPanel(true);
   }catch(e){
     showToast(t('disable_auth_failed')+e.message);
   }

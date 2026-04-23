@@ -4,7 +4,7 @@
 > Everything you can do from the CLI terminal, you can do from this UI.
 >
 > Last updated: v0.50.44 (April 16, 2026) — 1353 tests collected
-> Local delta: enabling password from Settings keeps the current browser signed in; the former Assistant Reply Language enhancement has been removed; workspace panel closed-state now preloads in `<head>` so desktop first paint no longer flashes open before boot sync; thinking cards and tool call cards now animate both their carets and disclosure bodies smoothly on expand/collapse, and thinking cards now use the same bordered rounded panel chrome as tool cards with a gold palette.
+> Local delta: enabling password from Settings keeps the current browser signed in; the former Assistant Reply Language enhancement has been removed; workspace panel closed-state now preloads in `<head>` so desktop first paint no longer flashes open before boot sync; thinking cards and tool call cards now animate both their carets and disclosure bodies smoothly on expand/collapse, and thinking cards now use the same bordered rounded panel chrome as tool cards with a gold palette. This local branch also adds a Channels panel for Telegram / Feishu / Weixin, profile-scoped `.env` writes, profile-aware gateway status plus start/restart controls, and Weixin QR connect over SSE.
 > Tests: 1353 collected (`pytest tests/ --collect-only -q`)
 > Source: <repo>/
 
@@ -77,6 +77,7 @@
 | v0.50.37–v0.50.40 | Sprint 40 — rendering fixes + KaTeX CSP + MEDIA images | Think-tag edge cases, renderMd link double-linking fix, MEDIA: inline image rendering, KaTeX CSP font-src fix | 1117 |
 | v0.50.41–v0.50.43 | Sprint 41/42 — context ring, session polish, renderMd hardening | Context indicator live usage, session display fixes, renderMd bold+code stash, outer link pass ordering, _ob_stash, autolink double-link fixes (@multiple contributors) | 1150 |
 | v0.50.44 | Renderer formatting bug fixes (#486, #487) | CSS: inline code sizing in table cells; JS: markdown image syntax ![alt](url) → <img> in renderMd + inlineMd; _img_stash for autolink protection | 1195 |
+| Local patch | Channels panel + gateway view | Auth-gated Channels tab, Telegram / Feishu config, Weixin QR SSE connect flow, `/api/gateway/status` plus start/restart actions, profile-scoped `.env` writes, frontend profile/auth wiring | 18 targeted tests |
 
 ---
 
@@ -86,8 +87,8 @@
 |-------|----------|--------|
 | Python server | <repo>/server.py (~165 lines) + api/ modules (~5000 lines) | Thin shell + QuietHTTPServer + auth middleware + business logic in api/ |
 | HTML template | <repo>/static/index.html (~600 lines) | Served from disk |
-| CSS | <repo>/static/style.css (~1050 lines) | Served from disk, incl. mobile responsive, KaTeX, table styles |
-| JavaScript | <repo>/static/{ui,workspace,sessions,messages,panels,boot,commands,icons,i18n,login}.js | 10 modules, ~7100 lines total |
+| CSS | <repo>/static/{style,channels}.css | Served from disk, incl. mobile responsive, KaTeX, table styles, and Channels panel styling |
+| JavaScript | <repo>/static/{ui,workspace,sessions,messages,panels,channels,boot,commands,icons,i18n,login}.js + `static/vendor/qrcode.min.js` | Modular vanilla JS, including auth-gated Channels state and local QR rendering |
 | Docker | Dockerfile, docker-compose.yml, .dockerignore | python:3.12-slim, multi-arch (amd64+arm64) |
 | CI/CD | .github/workflows/release.yml | Auto-release + GHCR publish on tag push |
 | Runtime state | ~/.hermes/webui-mvp/sessions/ | Session JSON files |
@@ -199,6 +200,7 @@
 - [x] Settings panel (default model, default workspace) (Sprint 12)
 - [x] Send key preference (Enter or Ctrl+Enter) (Sprint 17)
 - [x] Password authentication (Sprint 19)
+- [x] Channels panel for Telegram / Feishu / Weixin with profile-scoped secrets and gateway runtime visibility (local patch)
 - [ ] Enable/disable toolsets per session (deferred)
 
 ### Notifications

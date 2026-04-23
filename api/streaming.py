@@ -7,6 +7,7 @@ import logging
 import os
 import queue
 import re
+import sys
 import threading
 import time
 import traceback
@@ -20,7 +21,7 @@ from api.config import (
     STREAMS, STREAMS_LOCK, CANCEL_FLAGS, AGENT_INSTANCES,
     LOCK, SESSIONS, SESSION_DIR,
     _get_session_agent_lock, _set_thread_env, _clear_thread_env,
-    resolve_model_provider,
+    get_hermes_import_hint, resolve_model_provider,
 )
 from api.helpers import redact_session_data
 
@@ -33,8 +34,10 @@ _ENV_LOCK = threading.Lock()
 # Lazy import to avoid circular deps -- hermes-agent is on sys.path via api/config.py
 try:
     from run_agent import AIAgent
-except ImportError:
+    _AI_AGENT_IMPORT_ERROR = None
+except Exception as exc:
     AIAgent = None
+    _AI_AGENT_IMPORT_ERROR = exc
 
 def _get_ai_agent():
     """Return AIAgent class, retrying the import if the initial attempt failed.
@@ -44,14 +47,28 @@ def _get_ai_agent():
     Re-attempting the import here picks up the newly installed packages without
     requiring a server restart.
     """
-    global AIAgent
+    global AIAgent, _AI_AGENT_IMPORT_ERROR
     if AIAgent is None:
         try:
             from run_agent import AIAgent as _cls  # noqa: PLC0415
             AIAgent = _cls
-        except ImportError:
-            pass
+            _AI_AGENT_IMPORT_ERROR = None
+        except Exception as exc:
+            _AI_AGENT_IMPORT_ERROR = exc
     return AIAgent
+
+
+def _build_ai_agent_unavailable_message() -> str:
+    """Summarize why AIAgent could not be imported and how to fix it."""
+    if _AI_AGENT_IMPORT_ERROR is None:
+        return (
+            "AIAgent is not available. "
+            f"{get_hermes_import_hint()}"
+        )
+    return (
+        f"AIAgent import failed: {type(_AI_AGENT_IMPORT_ERROR).__name__}: "
+        f"{_AI_AGENT_IMPORT_ERROR}. {get_hermes_import_hint()}"
+    )
 from api.models import get_session, title_from
 from api.workspace import set_last_workspace
 
@@ -1044,7 +1061,7 @@ def _run_agent_streaming(session_id, msg_text, model, workspace, stream_id, atta
 
             _AIAgent = _get_ai_agent()
             if _AIAgent is None:
-                raise ImportError("AIAgent not available -- check that hermes-agent is on sys.path")
+                raise ImportError(_build_ai_agent_unavailable_message())
 
             # Initialize SessionDB so session_search works in WebUI sessions
             _session_db = None

@@ -814,6 +814,16 @@ function applyBotName(){
   // Update profile chip label immediately
   const profileLabel=$('profileChipLabel');
   if(profileLabel) profileLabel.textContent=S.activeProfile||'default';
+  if(typeof refreshChannelsAvailability==='function'){
+    await refreshChannelsAvailability();
+  }else if(typeof setChannelsAvailability==='function'){
+    try{
+      const auth=await api('/api/auth/status');
+      setChannelsAvailability(!!auth.auth_enabled);
+    }catch(_){
+      setChannelsAvailability(false);
+    }
+  }
   // Fetch available models from server and populate dropdown dynamically
   await populateModelDropdown();
   // Restore last-used model preference
