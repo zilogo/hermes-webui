@@ -611,14 +611,18 @@ window.addEventListener('resize',()=>{
 })();
 
 // ── Appearance helpers (theme = light/dark/system, skin = accent color) ──────
+// Branded build: only Karma (KarmaBox) is exposed. Other skins stay commented
+// so re-enabling is a pure uncomment — CSS variable blocks for them remain
+// intact in style.css and take effect only if listed here.
 const _SKINS=[
-  {name:'Default',  colors:['#FFD700','#FFBF00','#CD7F32']},
-  {name:'Ares',     colors:['#FF4444','#CC3333','#992222']},
-  {name:'Mono',     colors:['#CCCCCC','#999999','#666666']},
-  {name:'Slate',    colors:['#334155','#475569','#64748b']},
-  {name:'Poseidon', colors:['#0EA5E9','#0284C7','#0369A1']},
-  {name:'Sisyphus', colors:['#A78BFA','#8B5CF6','#7C3AED']},
-  {name:'Charizard',colors:['#FB923C','#F97316','#EA580C']},
+  // {name:'Default',  colors:['#FFD700','#FFBF00','#CD7F32']},
+  // {name:'Ares',     colors:['#FF4444','#CC3333','#992222']},
+  // {name:'Mono',     colors:['#CCCCCC','#999999','#666666']},
+  // {name:'Slate',    colors:['#334155','#475569','#64748b']},
+  // {name:'Poseidon', colors:['#0EA5E9','#0284C7','#0369A1']},
+  // {name:'Sisyphus', colors:['#A78BFA','#8B5CF6','#7C3AED']},
+  // {name:'Charizard',colors:['#FB923C','#F97316','#EA580C']},
+  {name:'Karma',    colors:['#1FDB8C','#0AB867','#067246']},
 ];
 const _VALID_THEMES=new Set(['system','dark','light']);
 const _VALID_SKINS=new Set((_SKINS||[]).map(s=>s.name.toLowerCase()));
@@ -672,6 +676,68 @@ function _applySkin(name){
   const key=(name||'default').toLowerCase();
   if(key==='default') delete document.documentElement.dataset.skin;
   else document.documentElement.dataset.skin=key;
+  if(typeof applyBrandForSkin==='function') applyBrandForSkin(key);
+  if(typeof applyFaviconForSkin==='function') applyFaviconForSkin(key);
+}
+
+// Returns the window title / visible brand name for the current skin.
+// Karma skin re-brands the UI as "Karmabox Pro"; other skins use the
+// user-configured bot name (falling back to "Hermes").
+function _getBrandTitle(){
+  try{
+    const skin=(localStorage.getItem('hermes-skin')||'').toLowerCase();
+    if(skin==='karma') return 'Karmabox Pro';
+  }catch(_){}
+  return window._botName||'Hermes';
+}
+
+// Swap brand-specific DOM text when the active skin changes.
+// Only the "karma" skin deviates from the Hermes baseline; everything else
+// restores the original data-brand-hermes content.
+function applyBrandForSkin(skin){
+  const isKarma=(skin||'').toLowerCase()==='karma';
+  document.title=_getBrandTitle();
+  document.querySelectorAll('[data-brand-hermes]').forEach(el=>{
+    const hermes=el.getAttribute('data-brand-hermes');
+    const karma=el.getAttribute('data-brand-karma');
+    if(karma==null) return;
+    el.textContent=isKarma?karma:hermes;
+  });
+  document.querySelectorAll('[data-brand-hermes-i18n]').forEach(el=>{
+    const hermesKey=el.getAttribute('data-brand-hermes-i18n');
+    const karmaKey=el.getAttribute('data-brand-karma-i18n');
+    if(!karmaKey) return;
+    el.setAttribute('data-i18n',isKarma?karmaKey:hermesKey);
+  });
+  if(typeof applyLocaleToDOM==='function') applyLocaleToDOM();
+}
+
+// Swap favicon to match the active skin. Karma gets its dedicated logo;
+// everything else restores the default Hermes favicon set.
+function applyFaviconForSkin(skin){
+  const isKarma=(skin||'').toLowerCase()==='karma';
+  const svg=document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+  const png=document.querySelector('link[rel="icon"][type="image/png"]');
+  const shortcut=document.querySelector('link[rel="shortcut icon"]');
+  if(isKarma){
+    if(svg) svg.setAttribute('data-original-href',svg.getAttribute('href')||'');
+    if(svg) svg.setAttribute('href','static/vendor/karma/karma-logo-192.png');
+    if(svg) svg.setAttribute('type','image/png');
+    if(png) png.setAttribute('data-original-href',png.getAttribute('href')||'');
+    if(png) png.setAttribute('href','static/vendor/karma/karma-logo-32.png');
+    if(shortcut) shortcut.setAttribute('data-original-href',shortcut.getAttribute('href')||'');
+    if(shortcut) shortcut.setAttribute('href','static/vendor/karma/karma-logo-32.png');
+  }else{
+    [svg,png,shortcut].forEach(link=>{
+      if(!link) return;
+      const orig=link.getAttribute('data-original-href');
+      if(orig!=null){
+        link.setAttribute('href',orig);
+        link.removeAttribute('data-original-href');
+      }
+      if(link===svg) link.setAttribute('type','image/svg+xml');
+    });
+  }
 }
 
 function _pickTheme(name){
@@ -742,7 +808,8 @@ function _buildSkinPicker(activeSkin){
 
 function applyBotName(){
   const name=window._botName||'Hermes';
-  document.title=name;
+  // Title follows the active skin's brand (karma → "Karmabox Pro"; else bot name).
+  document.title=_getBrandTitle();
   const sidebarH1=document.querySelector('.sidebar-header h1');
   if(sidebarH1) sidebarH1.textContent=name;
   const logo=document.querySelector('.sidebar-header .logo');

@@ -27,6 +27,10 @@ copilot-instructions.md
 # Generated screenshots and transient artifacts
 screenshot-*.png
 full-UI.png
+.playwright-mcp/
+chatclaw-*.png
+hermes-*.png
+karmabox-*.png
 
 # Version file written by Docker/CI build — generated, never committed
 api/_version.py

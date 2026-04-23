@@ -285,6 +285,7 @@ const LOCALES = {
     // onboarding
     onboarding_badge: 'FIRST RUN',
     onboarding_title: 'Welcome to Hermes Web UI',
+    onboarding_title_karma: 'Welcome to Karmabox Pro',
     onboarding_lead: 'A quick guided setup will verify Hermes, save a real provider configuration, choose a workspace and model, and optionally protect the app with a password.',
     onboarding_back: 'Back',
     onboarding_continue: 'Continue',
@@ -731,6 +732,7 @@ const LOCALES = {
     suggest_plan: 'Помоги спланировать небольшой проект.',
     onboarding_badge: 'ПЕРВЫЙ ЗАПУСК',
     onboarding_title: 'Добро пожаловать в Hermes Web UI',
+    onboarding_title_karma: 'Добро пожаловать в Karmabox Pro',
     onboarding_lead: 'Краткая пошаговая настройка проверит Hermes, сохранит рабочую конфигурацию провайдера, выберет рабочее пространство и модель и при желании защитит приложение паролем.',
     onboarding_back: 'Назад',
     onboarding_continue: 'Продолжить',
@@ -1177,6 +1179,7 @@ const LOCALES = {
     // onboarding
     onboarding_badge: 'PRIMER USO',
     onboarding_title: 'Bienvenido a Hermes Web UI',
+    onboarding_title_karma: 'Bienvenido a Karmabox Pro',
     onboarding_lead: 'Una guía rápida verificará Hermes, guardará una configuración real del proveedor, elegirá un espacio de trabajo y un modelo, y opcionalmente protegerá la app con una contraseña.',
     onboarding_back: 'Atrás',
     onboarding_continue: 'Continuar',
@@ -1832,6 +1835,7 @@ const LOCALES = {
     // onboarding
     onboarding_badge: '首次运行',
     onboarding_title: '欢迎使用 Hermes Web UI',
+    onboarding_title_karma: '欢迎使用 Karmabox Pro',
     onboarding_lead: '快速引导将验证 Hermes、保存真实的提供商配置、选择工作区和模型，并可选设置密码保护应用。',
     onboarding_back: '返回',
     onboarding_continue: '继续',

@@ -113,6 +113,19 @@
   background: rgba(255, 255, 255, 0.04);
   border-radius: 6px;
   padding: 2px 5px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* Long file paths / hint text inside the gateway card used to get clipped
+   by .channels-card's overflow:hidden (which exists to mask the top accent
+   bar). Force soft-wrapping on every row instead of letting children overflow. */
+.channels-gateway-list {
+  min-width: 0;
+}
+.channels-gateway-list > div {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .channels-cards {
@@ -185,6 +198,26 @@
   color: #c8d0e3;
   background: rgba(142, 154, 183, 0.14);
   border: 1px solid rgba(142, 154, 183, 0.22);
+}
+
+/* Light-mode overrides: the baseline status pill colors above were tuned for
+   dark backgrounds (light-green text on translucent-green fill). On light
+   themes the translucent fill renders near-white, collapsing contrast — use
+   darker text on the same tinted background instead. */
+:root:not(.dark) .channels-status.ok {
+  color: #0d6b3e;
+  background: rgba(37, 180, 108, 0.14);
+  border-color: rgba(37, 180, 108, 0.35);
+}
+:root:not(.dark) .channels-status.warn {
+  color: #8a5a10;
+  background: rgba(232, 176, 56, 0.14);
+  border-color: rgba(232, 176, 56, 0.38);
+}
+:root:not(.dark) .channels-status.idle {
+  color: #4d5672;
+  background: rgba(142, 154, 183, 0.12);
+  border-color: rgba(142, 154, 183, 0.32);
 }
 
 .channels-card-warning {

@@ -9,7 +9,7 @@
 <link rel="shortcut icon" href="static/favicon.ico">
 <!-- base href enables subpath mount support; all static paths must stay relative (no leading slash) -->
 <script>(function(){var p=location.pathname.endsWith('/')?location.pathname:(location.pathname.replace(/\/[^\/]*$/,'/')||'/');document.write('<base href="'+location.origin+p+'">');})()</script>
-<script>(function(){var themes={light:1,dark:1,system:1},skins={default:1,ares:1,mono:1,slate:1,poseidon:1,sisyphus:1,charizard:1},legacy={slate:['dark','slate'],solarized:['dark','poseidon'],monokai:['dark','sisyphus'],nord:['dark','slate'],oled:['dark','default']},t=(localStorage.getItem('hermes-theme')||'dark').toLowerCase(),s=(localStorage.getItem('hermes-skin')||'').toLowerCase(),m=legacy[t],theme=m?m[0]:(themes[t]?t:'dark'),skin=skins[s]?s:(m?m[1]:'default');localStorage.setItem('hermes-theme',theme);localStorage.setItem('hermes-skin',skin);if(theme==='system')theme=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';if(theme==='dark')document.documentElement.classList.add('dark');if(skin!=='default')document.documentElement.dataset.skin=skin;})()</script>
+<script>(function(){var themes={light:1,dark:1,system:1},skins={default:1,ares:1,mono:1,slate:1,poseidon:1,sisyphus:1,charizard:1,karma:1},legacy={slate:['dark','slate'],solarized:['dark','poseidon'],monokai:['dark','sisyphus'],nord:['dark','slate'],oled:['dark','default']},t=(localStorage.getItem('hermes-theme')||'dark').toLowerCase(),s=(localStorage.getItem('hermes-skin')||'').toLowerCase(),m=legacy[t],theme=m?m[0]:(themes[t]?t:'dark'),skin=skins[s]?s:(m?m[1]:'karma');localStorage.setItem('hermes-theme',theme);localStorage.setItem('hermes-skin',skin);if(theme==='system')theme=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';if(theme==='dark')document.documentElement.classList.add('dark');if(skin!=='default')document.documentElement.dataset.skin=skin;})()</script>
 <script>(function(){try{document.documentElement.dataset.workspacePanel=localStorage.getItem('hermes-webui-workspace-panel')==='open'?'open':'closed';}catch(e){document.documentElement.dataset.workspacePanel='closed';}})()</script>
 <link rel="stylesheet" href="static/style.css">
 <link rel="stylesheet" href="static/channels.css">
@@ -178,8 +178,9 @@
           <circle cx="32" cy="10" r="4" fill="#F5C542"/>
           <circle cx="32" cy="10" r="2" fill="#FFF8E1" opacity="0.7"/>
         </svg></span>
+        <img class="hermes-launch-icon-karma" src="static/vendor/karma/karma-logo-64.png" alt="" aria-hidden="true" width="32" height="32">
         <span class="hermes-launch-copy">
-          <span class="hermes-launch-title">Hermes WebUI</span>
+          <span class="hermes-launch-title" data-brand-hermes="Hermes WebUI" data-brand-karma="Karmabox Pro">Hermes WebUI</span>
           <span class="hermes-launch-meta">Preferences, imports, exports</span>
         </span>
         <span class="hermes-launch-chevron" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
@@ -432,7 +433,7 @@
     <div class="onboarding-shell">
       <div class="onboarding-sidebar">
         <div class="onboarding-badge" data-i18n="onboarding_badge">FIRST RUN</div>
-        <h2 id="onboardingTitle" data-i18n="onboarding_title">Welcome to Hermes Web UI</h2>
+        <h2 id="onboardingTitle" data-i18n="onboarding_title" data-brand-hermes-i18n="onboarding_title" data-brand-karma-i18n="onboarding_title_karma">Welcome to Hermes Web UI</h2>
         <p id="onboardingLead" data-i18n="onboarding_lead">A quick guided setup will check your Hermes install, choose a workspace and model, and optionally protect the app with a password.</p>
         <div class="onboarding-steps" id="onboardingSteps"></div>
       </div>
@@ -452,7 +453,7 @@
   <div class="settings-panel">
     <div class="settings-header">
       <div class="settings-heading">
-        <div class="settings-kicker">Hermes WebUI</div>
+        <div class="settings-kicker" data-brand-hermes="Hermes WebUI" data-brand-karma="Karmabox Pro">Hermes WebUI</div>
         <h3 style="margin:0;font-size:18px">Control Center</h3>
         <div class="settings-subtitle">Preferences, conversation tools, and system controls.</div>
       </div>
@@ -537,7 +538,7 @@
             <div class="settings-section-head">
               <div>
                 <div class="settings-section-title">Preferences</div>
-                <div class="settings-section-meta">Defaults and UI behavior for Hermes Web UI.</div>
+                <div class="settings-section-meta" data-brand-hermes="Defaults and UI behavior for Hermes Web UI." data-brand-karma="Defaults and UI behavior for Karmabox Pro.">Defaults and UI behavior for Hermes Web UI.</div>
               </div>
             </div>
             <div class="settings-field">

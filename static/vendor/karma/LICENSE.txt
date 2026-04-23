@@ -1,0 +1,17 @@
+Karma Logo Asset
+================
+
+Source project : KarmaBox (fork of chatclaw by the same author)
+Upstream URL   : https://github.com/zilogo/karmabox_ui
+Origin file    : public/karma-logo.png (4203x4001 PNG RGBA)
+Derived sizes  : karma-logo-{16,32,64,192}.png (generated via macOS `sips -Z`)
+
+This logo is used by hermes-webui's optional "Karma" skin (Settings →
+Appearance → Skin → Karma) to theme the UI with a KarmaBox-inspired
+identity. It is ONLY rendered when the user explicitly activates that
+skin; default skin and other skins are not affected.
+
+Both hermes-webui and KarmaBox are maintained by the same author, so
+cross-project logo reuse requires no external license. If this asset
+ever needs to be redistributed in a different context, retain this
+attribution and the upstream URL.
