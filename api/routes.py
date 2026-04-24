@@ -441,6 +441,7 @@ body{background:#1a1a2e;color:#e8e8f0;font-family:-apple-system,BlinkMacSystemFo
 .logo{width:48px;height:48px;border-radius:12px;background:linear-gradient(145deg,#e8a030,#e94560);
   display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;
   margin:0 auto 12px;box-shadow:0 2px 12px rgba(233,69,96,.3)}
+.logo img{display:none;width:100%;height:100%;object-fit:cover;border-radius:12px}
 h1{font-size:18px;font-weight:600;margin-bottom:4px}
 .sub{font-size:12px;color:#8888aa;margin-bottom:24px}
 input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);
@@ -452,9 +453,26 @@ button{width:100%;padding:10px;border-radius:10px;border:none;background:rgba(12
   transition:all .15s}
 button:hover{background:rgba(124,185,255,.25)}
 .err{color:#e94560;font-size:12px;margin-top:10px;display:none}
+body.karma{background:
+  radial-gradient(circle at 50% 16%,rgba(31,219,140,.16) 0%,rgba(31,219,140,.06) 24%,transparent 58%),
+  linear-gradient(180deg,#f6fbf7 0%,#edf8f0 100%);
+  color:#183127}
+body.karma .card{background:rgba(255,255,255,.78);border:1px solid rgba(15,111,73,.12);
+  box-shadow:0 18px 48px rgba(16,110,74,.12);backdrop-filter:blur(18px)}
+body.karma .logo{background:linear-gradient(145deg,rgba(31,219,140,.16),rgba(10,184,103,.1));
+  border:1px solid rgba(31,219,140,.22);box-shadow:0 10px 28px rgba(31,219,140,.18);overflow:hidden}
+body.karma .logo span{display:none}
+body.karma .logo img{display:block}
+body.karma h1{color:#183127}
+body.karma .sub{color:#587465}
+body.karma input{background:rgba(240,248,242,.92);border-color:rgba(88,116,101,.22);color:#183127}
+body.karma input:focus{border-color:rgba(31,219,140,.55);box-shadow:0 0 0 3px rgba(31,219,140,.14)}
+body.karma button{background:rgba(31,219,140,.14);border:1px solid rgba(31,219,140,.28);color:#128553}
+body.karma button:hover{background:rgba(31,219,140,.22)}
+body.karma .err{color:#cf4d64}
 </style></head><body>
 <div class="card">
-  <div class="logo">{{BOT_NAME_INITIAL}}</div>
+  <div class="logo"><span>{{BOT_NAME_INITIAL}}</span><img src="/static/vendor/karma/karma-logo-64.png" alt="" aria-hidden="true" width="48" height="48"></div>
   <h1>{{BOT_NAME}}</h1>
   <p class="sub">{{LOGIN_SUBTITLE}}</p>
   <form id="login-form" data-invalid-pw="{{LOGIN_INVALID_PW}}" data-conn-failed="{{LOGIN_CONN_FAILED}}">
@@ -481,7 +499,8 @@ def handle_get(handler, parsed) -> bool:
 
     if parsed.path == "/login":
         _settings = load_settings()
-        _bn = _html.escape(_settings.get("bot_name") or "Hermes")
+        _bn = _html.escape(_settings.get("bot_name") or "KarmaBox")
+        _skin = str(_settings.get("skin") or "default").strip().lower()
         _lang = _settings.get("language", "en")
         _login_strings = _LOGIN_LOCALE[
             _resolve_login_locale_key(_lang)
@@ -501,6 +520,8 @@ def handle_get(handler, parsed) -> bool:
                 "{{LOGIN_CONN_FAILED}}", _html.escape(_login_strings["conn_failed"])
             )
         )
+        if _skin == "karma":
+            _page = _page.replace("<body>", '<body class="karma">', 1)
         return t(handler, _page, content_type="text/html; charset=utf-8")
 
     if parsed.path == "/api/auth/status":
@@ -1281,7 +1302,7 @@ def handle_post(handler, parsed) -> bool:
         )
 
         if "bot_name" in body:
-            body["bot_name"] = (str(body["bot_name"]) or "").strip() or "Hermes"
+            body["bot_name"] = (str(body["bot_name"]) or "").strip() or "KarmaBox"
 
         auth_enabled_before = is_auth_enabled()
         current_cookie = parse_cookie(handler)

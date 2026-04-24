@@ -626,12 +626,13 @@ const _SKINS=[
 ];
 const _VALID_THEMES=new Set(['system','dark','light']);
 const _VALID_SKINS=new Set((_SKINS||[]).map(s=>s.name.toLowerCase()));
+const _DEFAULT_SKIN='karma';
 const _LEGACY_THEME_MAP={
   slate:{theme:'dark',skin:'slate'},
   solarized:{theme:'dark',skin:'poseidon'},
   monokai:{theme:'dark',skin:'sisyphus'},
   nord:{theme:'dark',skin:'slate'},
-  oled:{theme:'dark',skin:'default'},
+  oled:{theme:'dark',skin:_DEFAULT_SKIN},
 };
 let _systemThemeMq=null;
 let _onSystemThemeChange=null;
@@ -641,7 +642,8 @@ function _normalizeAppearance(theme,skin){
   const rawSkin=typeof skin==='string'?skin.trim().toLowerCase():'';
   const legacy=_LEGACY_THEME_MAP[rawTheme];
   const nextTheme=legacy?legacy.theme:(_VALID_THEMES.has(rawTheme)?rawTheme:'dark');
-  const nextSkin=_VALID_SKINS.has(rawSkin)?rawSkin:(legacy?legacy.skin:'default');
+  const normalizedSkin=rawSkin==='default'?_DEFAULT_SKIN:rawSkin;
+  const nextSkin=_VALID_SKINS.has(normalizedSkin)?normalizedSkin:(legacy?legacy.skin:_DEFAULT_SKIN);
   return {theme:nextTheme,skin:nextSkin};
 }
 
@@ -833,7 +835,7 @@ function applyBotName(){
     window._notificationsEnabled=!!s.notifications_enabled;
     window._showThinking=s.show_thinking!==false;
     window._sidebarDensity=(s.sidebar_density==='detailed'?'detailed':'compact');
-    window._botName=s.bot_name||'Hermes';
+    window._botName=s.bot_name||'KarmaBox';
     // Persist default workspace so the blank new-chat page can show it
     // and workspace actions (New file/folder) work before the first session (#804).
     if(s.default_workspace) S._profileDefaultWorkspace=s.default_workspace;

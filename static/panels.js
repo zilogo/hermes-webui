@@ -1320,7 +1320,7 @@ async function loadSettingsPanel(){
     }
     // Bot name
     const botNameField=$('settingsBotName');
-    if(botNameField){botNameField.value=settings.bot_name||'Hermes';botNameField.addEventListener('input',_markSettingsDirty,{once:false});}
+    if(botNameField){botNameField.value=settings.bot_name||'KarmaBox';botNameField.addEventListener('input',_markSettingsDirty,{once:false});}
     // Password field: always blank (we don't send hash back)
     const pwField=$('settingsPassword');
     if(pwField){pwField.value='';pwField.addEventListener('input',_markSettingsDirty,{once:false});}
@@ -1352,7 +1352,7 @@ function _applySavedSettingsUi(saved, body, opts){
   window._notificationsEnabled=body.notifications_enabled;
   window._showThinking=body.show_thinking!==false;
   window._sidebarDensity=sidebarDensity==='detailed'?'detailed':'compact';
-  window._botName=body.bot_name||'Hermes';
+  window._botName=body.bot_name||'KarmaBox';
   if(typeof applyBotName==='function') applyBotName();
   if(typeof setLocale==='function') setLocale(language);
   if(typeof applyLocaleToDOM==='function') applyLocaleToDOM();
@@ -1400,7 +1400,7 @@ async function saveSettings(andClose){
   body.show_thinking=window._showThinking!==false;
   body.sidebar_density=sidebarDensity;
   const botName=(($('settingsBotName')||{}).value||'').trim();
-  body.bot_name=botName||'Hermes';
+  body.bot_name=botName||'KarmaBox';
   // Password: only act if the field has content; blank = leave auth unchanged
   if(pw && pw.trim()){
     try{

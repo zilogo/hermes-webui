@@ -1584,10 +1584,10 @@ _SETTINGS_DEFAULTS = {
     "sync_to_insights": False,  # mirror WebUI token usage to state.db for /insights
     "check_for_updates": True,  # check if webui/agent repos are behind upstream
     "theme": "dark",  # light | dark | system
-    "skin": "default",  # accent color skin: default | ares | mono | slate | poseidon | sisyphus | charizard
+    "skin": "karma",  # branded default skin for KarmaBox builds
     "language": "en",  # UI locale code; must match a key in static/i18n.js LOCALES
     "bot_name": os.getenv(
-        "HERMES_WEBUI_BOT_NAME", "Hermes"
+        "HERMES_WEBUI_BOT_NAME", "KarmaBox"
     ),  # display name for the assistant
     "sound_enabled": False,  # play notification sound when assistant finishes
     "notifications_enabled": False,  # browser notification when tab is in background
@@ -1605,6 +1605,7 @@ _SETTINGS_SKIN_VALUES = {
     "poseidon",
     "sisyphus",
     "charizard",
+    "karma",
 }
 _SETTINGS_LEGACY_THEME_MAP = {
     # Legacy full themes now map onto the closest supported theme + accent skin pair.
@@ -1638,14 +1639,17 @@ def _normalize_appearance(theme, skin) -> tuple[str, str]:
     """
     raw_theme = theme.strip().lower() if isinstance(theme, str) else ""
     raw_skin = skin.strip().lower() if isinstance(skin, str) else ""
+    default_skin = _SETTINGS_DEFAULTS["skin"]
     legacy = _SETTINGS_LEGACY_THEME_MAP.get(raw_theme)
     if legacy:
         next_theme, legacy_skin = legacy
     elif raw_theme in _SETTINGS_THEME_VALUES:
-        next_theme, legacy_skin = raw_theme, "default"
+        next_theme, legacy_skin = raw_theme, default_skin
     else:
         # Unknown themes used to exist; default to dark so upgrades stay visually stable.
-        next_theme, legacy_skin = "dark", "default"
+        next_theme, legacy_skin = "dark", default_skin
+    if raw_skin == "default":
+        raw_skin = default_skin
     next_skin = (
         raw_skin
         if raw_skin in _SETTINGS_SKIN_VALUES

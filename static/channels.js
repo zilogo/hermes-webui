@@ -243,21 +243,7 @@ function _renderGatewayStatus(gateway) {
   const stateLabel = running
     ? _channelsText('channels_gateway_running', 'Gateway running')
     : _channelsText('channels_gateway_stopped', 'Gateway stopped')
-  const updated = gateway && (gateway.updated_at || gateway.state_mtime)
   const profileName = (_channelsState && _channelsState.profile && _channelsState.profile.name) || S.activeProfile || 'default'
-  const platforms = gateway && Array.isArray(gateway.platforms) && gateway.platforms.length
-    ? gateway.platforms.join(', ')
-    : _channelsText('channels_not_available', 'Not available')
-  const manager = control.manager || _channelsText('channels_not_available', 'Not available')
-  const scope = _gatewayScopeText(control.scope)
-  const serviceInstalled = control.service_installed === true
-  const serviceStatus = serviceInstalled
-    ? _channelsText('channels_gateway_service_installed', 'Installed')
-    : _channelsText('channels_gateway_service_missing', 'Not installed')
-  const servicePath = control.service_path || _channelsText('channels_not_available', 'Not available')
-  const servicePathLabel = serviceInstalled
-    ? _channelsText('channels_gateway_service_path', 'Service path')
-    : _channelsText('channels_gateway_service_expected_path', 'Expected service path')
   const disabledReason = !actionAvailable ? ` title="${esc(_gatewayControlReason(control))}"` : ''
 
   box.innerHTML = `
@@ -268,21 +254,10 @@ function _renderGatewayStatus(gateway) {
           ? `<button class="cron-btn" type="button" onclick="restartGateway()" ${(!actionAvailable || controlsBusy) ? 'disabled' : ''}${disabledReason}>${esc(_gatewayActionLabel('restart'))}</button>`
           : `<button class="cron-btn run" type="button" onclick="startGateway()" ${(!actionAvailable || controlsBusy) ? 'disabled' : ''}${disabledReason}>${esc(_gatewayActionLabel('start'))}</button>`
         }
-        <button class="channels-gateway-copy" type="button" onclick="copyChannelsHome()">${esc(_channelsText('channels_gateway_copy_home', 'Copy HERMES_HOME'))}</button>
       </div>
     </div>
     <div class="channels-gateway-list">
       <div><strong>${esc(_channelsText('channels_gateway_profile', 'Profile'))}</strong> <code>${esc(profileName)}</code></div>
-      <div><strong>${esc(_channelsText('channels_gateway_home', 'HERMES_HOME'))}</strong> <code>${esc((gateway && gateway.hermes_home) || '')}</code></div>
-      <div><strong>${esc(_channelsText('channels_gateway_pid', 'PID'))}</strong> <code>${esc(gateway && gateway.pid ? String(gateway.pid) : _channelsText('not_available', 'N/A'))}</code></div>
-      <div><strong>${esc(_channelsText('channels_gateway_manager', 'Service manager'))}</strong> ${esc(manager)}</div>
-      <div><strong>${esc(_channelsText('channels_gateway_scope', 'Scope'))}</strong> ${esc(scope)}</div>
-      <div><strong>${esc(_channelsText('channels_gateway_service_status', 'Service status'))}</strong> ${esc(serviceStatus)}</div>
-      <div><strong>${esc(servicePathLabel)}</strong> <code>${esc(servicePath)}</code></div>
-      <div><strong>${esc(_channelsText('channels_gateway_platforms', 'Platforms'))}</strong> ${esc(platforms)}</div>
-      <div><strong>${esc(_channelsText('channels_gateway_agents', 'Active agents'))}</strong> ${esc(_formatActiveAgents(gateway && gateway.active_agents))}</div>
-      <div><strong>${esc(_channelsText('channels_gateway_updated_label', 'Updated'))}</strong> ${esc(_formatChannelTime(updated))}</div>
-      <div>${esc(_gatewayHintText(control, running))}</div>
     </div>
   `
 }
@@ -292,8 +267,7 @@ function _renderChannelsPanel(data) {
   const line = $('channelsProfileLine')
   if (line) {
     const name = profile.name || 'default'
-    const home = profile.hermes_home || ''
-    line.textContent = home ? `${name} · ${home}` : name
+    line.textContent = name
   }
 
   const warning = $('channelsHostWarning')
