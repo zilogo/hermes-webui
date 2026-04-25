@@ -65,3 +65,32 @@ def test_profile_switch_replaces_overlapping_keys(monkeypatch, tmp_path):
     assert os.environ.get("OPENAI_API_KEY") == "secret-from-p2"
     assert os.environ.get("ONLY_P1") is None
     assert os.environ.get("ONLY_P2") == "two"
+
+
+def test_profile_config_path_ignores_root_override_for_non_default_profile(monkeypatch, tmp_path):
+    base = tmp_path / ".hermes"
+    (base / "profiles" / "cloud-1").mkdir(parents=True)
+    (base / "config.yaml").write_text("model:\n  default: root-model\n", encoding="utf-8")
+    (base / "profiles" / "cloud-1" / "config.yaml").write_text(
+        "model:\n  default: cloud-model\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("HERMES_BASE_HOME", str(base))
+    monkeypatch.setenv("HERMES_CONFIG_PATH", str(base / "config.yaml"))
+    monkeypatch.delenv("HERMES_HOME", raising=False)
+
+    sys.modules.pop("api.profiles", None)
+    sys.modules.pop("api.config", None)
+    profiles = importlib.import_module("api.profiles")
+    profiles = importlib.reload(profiles)
+    config = importlib.import_module("api.config")
+    config = importlib.reload(config)
+
+    assert config._get_config_path() == base / "config.yaml"
+
+    profiles.set_request_profile("cloud-1")
+    try:
+        assert config._get_config_path() == base / "profiles" / "cloud-1" / "config.yaml"
+    finally:
+        profiles.clear_request_profile()

@@ -572,6 +572,13 @@ def handle_get(handler, parsed) -> bool:
         settings = load_settings()
         # Never expose the stored password hash to clients
         settings.pop("password_hash", None)
+        try:
+            from api.config import is_karmabox_mode, get_karmabox_model_base_url
+            settings["karmabox_mode"] = is_karmabox_mode()
+            settings["karmabox_model_base_url"] = get_karmabox_model_base_url()
+        except Exception:
+            settings["karmabox_mode"] = False
+            settings["karmabox_model_base_url"] = "https://api.aitokencloud.com"
         # Inject the running version so the UI badge stays in sync with git tags
         # without any manual release step.
         try:
@@ -1258,6 +1265,9 @@ def handle_post(handler, parsed) -> bool:
             clone_from = str(clone_from).strip()
             if not _re.match(r"^[a-z0-9][a-z0-9_-]{0,63}$", clone_from):
                 return bad(handler, "Invalid clone_from name")
+        create_mode = str(body.get("create_mode") or "custom").strip().lower()
+        if create_mode not in {"custom", "clone", "managed"}:
+            return bad(handler, "Invalid create_mode")
         base_url = body.get("base_url", "").strip() if body.get("base_url") else None
         api_key = body.get("api_key", "").strip() if body.get("api_key") else None
         if base_url and not base_url.startswith(("http://", "https://")):
@@ -1269,6 +1279,7 @@ def handle_post(handler, parsed) -> bool:
                 name,
                 clone_from=clone_from,
                 clone_config=bool(body.get("clone_config", False)),
+                create_mode=create_mode,
                 base_url=base_url,
                 api_key=api_key,
             )

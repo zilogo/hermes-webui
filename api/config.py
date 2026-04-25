@@ -53,6 +53,68 @@ PROJECTS_FILE = STATE_DIR / "projects.json"
 logger = logging.getLogger(__name__)
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def is_karmabox_mode() -> bool:
+    """Whether KarmaBox managed-profile UX is enabled."""
+    return _env_flag("KARMABOX_MODE", False)
+
+
+def get_karmabox_model_base_url() -> str:
+    """Default managed-provider base URL for new KarmaBox online profiles."""
+    return (
+        os.getenv("KARMABOX_MODEL_BASE_URL", "https://api.aitokencloud.com")
+        .strip()
+        .rstrip("/")
+    )
+
+
+def normalize_openai_compat_base_url(base_url: str) -> str:
+    """Normalize an OpenAI-compatible base URL for SDK chat/completions calls.
+
+    The WebUI model picker probes ``/v1/models`` manually, so a managed host can
+    be configured as ``https://api.aitokencloud.com`` and still discover models.
+    The OpenAI SDK is stricter: it expects the base URL itself to already point
+    at the OpenAI-compatible API root (typically ``.../v1``).  When the path is
+    empty, append ``/v1``; otherwise preserve the caller's explicit path.
+    """
+    normalized = (base_url or "").strip().rstrip("/")
+    if not normalized:
+        return ""
+    try:
+        parsed = urlparse(
+            normalized if "://" in normalized else f"https://{normalized}"
+        )
+    except Exception:
+        return normalized
+    path = (parsed.path or "").rstrip("/")
+    if not path:
+        return normalized + "/v1"
+    return normalized
+
+
+def _is_allowed_karmabox_managed_host(hostname: str | None, *, managed_profile: bool = False) -> bool:
+    """Allow the managed KarmaBox model host through custom-endpoint guards.
+
+    Some managed providers terminate behind private or benchmark address space
+    even though the hostname itself is a user-approved public endpoint.
+    In KarmaBox managed mode we allow that single configured hostname, but keep
+    the generic SSRF protection intact for every other custom endpoint.
+    """
+    if not managed_profile or not hostname or not is_karmabox_mode():
+        return False
+    try:
+        allowed = urlparse(get_karmabox_model_base_url())
+        return (allowed.hostname or "").strip().lower() == str(hostname).strip().lower()
+    except Exception:
+        return False
+
+
 # ── Hermes agent directory discovery ─────────────────────────────────────────
 def _discover_agent_dir() -> Path:
     """
@@ -171,14 +233,23 @@ _cfg_mtime: float = 0.0  # last known mtime of config.yaml; 0 = never loaded
 
 def _get_config_path() -> Path:
     """Return config.yaml path for the active profile."""
-    env_override = os.getenv("HERMES_CONFIG_PATH")
-    if env_override:
-        return Path(env_override).expanduser()
     try:
-        from api.profiles import get_active_hermes_home
+        from api.profiles import get_active_hermes_home, get_active_profile_name
 
-        return get_active_hermes_home() / "config.yaml"
+        active_home = get_active_hermes_home()
+        active_profile = get_active_profile_name()
+        # HERMES_CONFIG_PATH is useful for single-profile installs and tests, but
+        # it must not force every non-default profile to keep reading the base
+        # config.yaml. Otherwise profile switching updates HERMES_HOME correctly
+        # yet model/profile-specific settings still come from the root profile.
+        env_override = os.getenv("HERMES_CONFIG_PATH")
+        if env_override and active_profile == "default":
+            return Path(env_override).expanduser()
+        return active_home / "config.yaml"
     except ImportError:
+        env_override = os.getenv("HERMES_CONFIG_PATH")
+        if env_override:
+            return Path(env_override).expanduser()
         return HOME / ".hermes" / "config.yaml"
 
 
@@ -784,10 +855,16 @@ def resolve_model_provider(model_id: str) -> tuple:
     """
     config_provider = None
     config_base_url = None
+    managed_profile = False
     model_cfg = cfg.get("model", {})
     if isinstance(model_cfg, dict):
         config_provider = model_cfg.get("provider")
         config_base_url = model_cfg.get("base_url")
+    karmabox_cfg = cfg.get("karmabox", {})
+    if isinstance(karmabox_cfg, dict):
+        managed_profile = bool(karmabox_cfg.get("managed_profile"))
+    if managed_profile and config_base_url:
+        config_base_url = normalize_openai_compat_base_url(str(config_base_url))
 
     model_id = (model_id or "").strip()
     if not model_id:
@@ -1068,6 +1145,7 @@ def get_available_models() -> dict:
 
     # 1. Read config.yaml model section
     cfg_base_url = ""  # must be defined before conditional blocks (#117)
+    managed_profile = False
     model_cfg = cfg.get("model", {})
     cfg_base_url = ""
     if isinstance(model_cfg, str):
@@ -1078,6 +1156,9 @@ def get_available_models() -> dict:
         cfg_base_url = model_cfg.get("base_url", "")
         if cfg_default:
             default_model = cfg_default
+    kb_cfg = cfg.get("karmabox", {})
+    if isinstance(kb_cfg, dict):
+        managed_profile = bool(kb_cfg.get("managed_profile"))
 
     # Normalize active_provider to its canonical key so it matches the
     # _PROVIDER_MODELS lookup below (e.g. 'z.ai' -> 'zai', 'x.ai' -> 'xai',
@@ -1277,6 +1358,10 @@ def get_available_models() -> dict:
             if parsed_url.hostname:
                 try:
                     resolved_ips = socket.getaddrinfo(parsed_url.hostname, None)
+                    allow_managed_private_host = _is_allowed_karmabox_managed_host(
+                        parsed_url.hostname,
+                        managed_profile=managed_profile,
+                    )
                     for _, _, _, _, addr in resolved_ips:
                         addr_obj = ipaddress.ip_address(addr[0])
                         if (
@@ -1295,7 +1380,7 @@ def get_available_models() -> dict:
                                     "lm-studio",
                                 )
                             )
-                            if not is_known_local:
+                            if not is_known_local and not allow_managed_private_host:
                                 raise ValueError(
                                     f"SSRF: resolved hostname to private IP {addr[0]}"
                                 )
@@ -1404,6 +1489,8 @@ def get_available_models() -> dict:
                     groups.append({"provider": _nc_display, "provider_id": pid, "models": _nc_models})
                 continue
             provider_name = _PROVIDER_DISPLAY.get(pid, pid.title())
+            if pid == "custom" and managed_profile:
+                provider_name = "AITokenCloud"
             if pid == "openrouter":
                 # OpenRouter uses provider/model format -- show the fallback list
                 groups.append(
@@ -1528,6 +1615,8 @@ def get_available_models() -> dict:
         "active_provider": active_provider,
         "default_model": default_model,
         "groups": groups,
+        "allow_custom_model_id": not managed_profile,
+        "managed_profile": managed_profile,
     }
     # Cache the result for TTL seconds
     with _available_models_cache_lock:

@@ -84,6 +84,7 @@ async function populateModelDropdown(){
     if(!data.groups||!data.groups.length) return; // keep HTML defaults
     // Store active provider globally so the send path can warn on mismatch
     window._activeProvider=data.active_provider||null;
+    window._allowCustomModelId=data.allow_custom_model_id!==false;
     // Clear existing options
     sel.innerHTML='';
     _dynamicModelLabels={};
@@ -256,15 +257,18 @@ function renderModelDropdown(){
   _searchRow.innerHTML=`<input class="model-search-input" type="text" placeholder="${esc(t('model_search_placeholder')||'Search models…')}" spellcheck="false" autocomplete="off"><button class="model-search-clear" title="Clear search">${li('x',10)}</button>`;
   const _si=_searchRow.querySelector('.model-search-input');
   const _sc=_searchRow.querySelector('.model-search-clear');
-  // Create custom model section elements
-  const _custSep=document.createElement('div');
-  _custSep.className='model-group model-custom-sep';
-  _custSep.textContent=t('model_custom_label')||'Custom model ID';
-  const _custRow=document.createElement('div');
-  _custRow.className='model-custom-row';
-  _custRow.innerHTML=`<input class="model-custom-input" type="text" placeholder="${esc(t('model_custom_placeholder')||'e.g. openai/gpt-5.4')}" spellcheck="false" autocomplete="off"><button class="model-custom-btn" title="Use this model">${li('plus',12)}</button>`;
-  const _ci=_custRow.querySelector('.model-custom-input');
-  const _cb=_custRow.querySelector('.model-custom-btn');
+  const allowCustom=window._allowCustomModelId!==false;
+  let _custSep=null,_custRow=null,_ci=null,_cb=null;
+  if(allowCustom){
+    _custSep=document.createElement('div');
+    _custSep.className='model-group model-custom-sep';
+    _custSep.textContent=t('model_custom_label')||'Custom model ID';
+    _custRow=document.createElement('div');
+    _custRow.className='model-custom-row';
+    _custRow.innerHTML=`<input class="model-custom-input" type="text" placeholder="${esc(t('model_custom_placeholder')||'e.g. openai/gpt-5.4')}" spellcheck="false" autocomplete="off"><button class="model-custom-btn" title="Use this model">${li('plus',12)}</button>`;
+    _ci=_custRow.querySelector('.model-custom-input');
+    _cb=_custRow.querySelector('.model-custom-btn');
+  }
   // Filter function (defined AFTER _searchRow and _cust* are created)
   const _filterModels=(term)=>{
     term=term.trim().toLowerCase();
@@ -280,8 +284,10 @@ function renderModelDropdown(){
     dd.innerHTML='';
     // Add search and custom elements first (CRITICAL: must be before models)
     dd.appendChild(_searchRow);
-    dd.appendChild(_custSep);
-    dd.appendChild(_custRow);
+    if(allowCustom){
+      dd.appendChild(_custSep);
+      dd.appendChild(_custRow);
+    }
     // Add models matching filter
     let _lastGroup=null;
     for(const m of _modelData){
@@ -321,14 +327,18 @@ function renderModelDropdown(){
   _sc.onclick=()=>{ _si.value=''; _filterModels(''); _si.focus(); };
   _sc.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){ _si.value=''; _filterModels(''); _si.focus(); e.preventDefault(); }});
   // Event handlers for custom input
-  const _applyCustom=()=>{const v=_ci.value.trim();if(!v)return;selectModelFromDropdown(v);_ci.value='';};
-  _cb.onclick=_applyCustom;
-  _ci.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();_applyCustom();}if(e.key==='Escape'){closeModelDropdown();}});
-  _ci.addEventListener('click',e=>e.stopPropagation());
+  if(allowCustom){
+    const _applyCustom=()=>{const v=_ci.value.trim();if(!v)return;selectModelFromDropdown(v);_ci.value='';};
+    _cb.onclick=_applyCustom;
+    _ci.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();_applyCustom();}if(e.key==='Escape'){closeModelDropdown();}});
+    _ci.addEventListener('click',e=>e.stopPropagation());
+  }
   // Add search and custom elements to dropdown (initial render)
   dd.appendChild(_searchRow);
-  dd.appendChild(_custSep);
-  dd.appendChild(_custRow);
+  if(allowCustom){
+    dd.appendChild(_custSep);
+    dd.appendChild(_custRow);
+  }
   // Apply initial filter (empty shows all)
   _filterModels('');
 }

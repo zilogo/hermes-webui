@@ -94,6 +94,29 @@ def test_bare_model_uses_config_provider():
     assert base_url == 'http://192.168.1.160:4000'
 
 
+def test_managed_profile_root_base_url_is_normalized_for_runtime():
+    """Managed KarmaBox profiles may store a root host, but runtime needs /v1."""
+    old_cfg = dict(config.cfg)
+    config.cfg.clear()
+    config.cfg.update({
+        'model': {
+            'provider': 'custom',
+            'base_url': 'https://api.aitokencloud.com',
+        },
+        'karmabox': {
+            'managed_profile': True,
+        },
+    })
+    try:
+        model, provider, base_url = config.resolve_model_provider('GLM5')
+    finally:
+        config.cfg.clear()
+        config.cfg.update(old_cfg)
+    assert model == 'GLM5'
+    assert provider == 'custom'
+    assert base_url == 'https://api.aitokencloud.com/v1'
+
+
 def test_empty_model_returns_config_defaults():
     """Empty model string returns config provider and base_url."""
     model, provider, base_url = _resolve_with_config(

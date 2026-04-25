@@ -413,7 +413,11 @@ def _create_profile_fallback(name: str, clone_from: str = None,
     return profile_dir
 
 
-def _write_endpoint_to_config(profile_dir: Path, base_url: str = None, api_key: str = None) -> None:
+def _write_endpoint_to_config(profile_dir: Path,
+                              base_url: str = None,
+                              api_key: str = None,
+                              *,
+                              managed_profile: bool = False) -> None:
     """Write custom endpoint fields into config.yaml for a profile."""
     if not base_url and not api_key:
         return
@@ -434,23 +438,60 @@ def _write_endpoint_to_config(profile_dir: Path, base_url: str = None, api_key: 
     if not isinstance(model_section, dict):
         model_section = {}
     if base_url:
+        if managed_profile:
+            try:
+                from api.config import normalize_openai_compat_base_url
+
+                base_url = normalize_openai_compat_base_url(base_url)
+            except Exception:
+                logger.debug("Failed to normalize managed profile base_url")
+        # A user-supplied Base URL means this profile should route through the
+        # custom OpenAI-compatible endpoint instead of relying on ambient
+        # provider auto-detection.
+        model_section['provider'] = 'custom'
         model_section['base_url'] = base_url
     if api_key:
         model_section['api_key'] = api_key
     cfg['model'] = model_section
+    if managed_profile:
+        kb_section = cfg.get('karmabox', {})
+        if not isinstance(kb_section, dict):
+            kb_section = {}
+        kb_section['managed_profile'] = True
+        cfg['karmabox'] = kb_section
     config_path.write_text(_yaml.dump(cfg, default_flow_style=False, allow_unicode=True), encoding='utf-8')
 
 
 def create_profile_api(name: str, clone_from: str = None,
                        clone_config: bool = False,
+                       create_mode: str = None,
                        base_url: str = None,
                        api_key: str = None) -> dict:
     """Create a new profile. Returns the new profile info dict."""
     _validate_profile_name(name)
+    create_mode = (create_mode or 'custom').strip().lower()
+    if create_mode not in {'custom', 'clone', 'managed'}:
+        raise ValueError(f"Unknown create_mode '{create_mode}'")
     # Defense-in-depth: validate clone_from here too, even though routes.py
     # also validates it. Any caller that bypasses the HTTP layer gets protection.
     if clone_from is not None and clone_from != 'default':
         _validate_profile_name(clone_from)
+    if create_mode == 'clone':
+        if not clone_from:
+            raise ValueError("clone_from is required when create_mode=clone")
+        clone_config = True
+        base_url = None
+        api_key = None
+    elif create_mode == 'managed':
+        from api.config import get_karmabox_model_base_url, is_karmabox_mode
+
+        if not is_karmabox_mode():
+            raise ValueError("Managed profile creation requires KARMABOX_MODE=true")
+        if not api_key:
+            raise ValueError("api_key is required when create_mode=managed")
+        clone_config = False
+        clone_from = None
+        base_url = base_url or get_karmabox_model_base_url()
 
     try:
         from hermes_cli.profiles import create_profile
@@ -478,7 +519,12 @@ def create_profile_api(name: str, clone_from: str = None,
             break
 
     profile_path.mkdir(parents=True, exist_ok=True)
-    _write_endpoint_to_config(profile_path, base_url=base_url, api_key=api_key)
+    _write_endpoint_to_config(
+        profile_path,
+        base_url=base_url,
+        api_key=api_key,
+        managed_profile=(create_mode == 'managed'),
+    )
 
     # Find and return the newly created profile info.
     # When hermes_cli is not importable, list_profiles_api() also falls back

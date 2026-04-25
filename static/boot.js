@@ -436,6 +436,9 @@ $('modelSelect').onchange=async()=>{
   if(typeof closeModelDropdown==='function') closeModelDropdown();
   localStorage.setItem('hermes-webui-model', selectedModel);
   await api('/api/session/update',{method:'POST',body:JSON.stringify({session_id:S.session.session_id,workspace:S.session.workspace,model:selectedModel})});
+  try{
+    await api('/api/default-model',{method:'POST',body:JSON.stringify({model:selectedModel})});
+  }catch(_defaultModelErr){}
   S.session.model=selectedModel;
   if(typeof syncModelChip==='function') syncModelChip();
   syncTopbar();
@@ -836,6 +839,8 @@ function applyBotName(){
     window._showThinking=s.show_thinking!==false;
     window._sidebarDensity=(s.sidebar_density==='detailed'?'detailed':'compact');
     window._botName=s.bot_name||'KarmaBox';
+    window._karmaboxMode=!!s.karmabox_mode;
+    window._karmaboxModelBaseUrl=s.karmabox_model_base_url||'https://api.aitokencloud.com';
     // Persist default workspace so the blank new-chat page can show it
     // and workspace actions (New file/folder) work before the first session (#804).
     if(s.default_workspace) S._profileDefaultWorkspace=s.default_workspace;

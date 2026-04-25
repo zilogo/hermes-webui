@@ -146,11 +146,22 @@
       <!-- Profile create form (hidden by default) -->
       <div id="profileCreateForm" style="display:none;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0">
         <input id="profileFormName" data-i18n-placeholder="profile_name_placeholder" placeholder="Profile name (lowercase, a-z 0-9 hyphens)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;margin-bottom:6px;box-sizing:border-box">
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:8px;cursor:pointer">
-          <input type="checkbox" id="profileFormClone" style="accent-color:var(--accent)"> <span data-i18n="profile_clone_label">Clone config from active profile</span>
-        </label>
-        <input id="profileFormBaseUrl" data-i18n-placeholder="profile_base_url_placeholder" placeholder="Base URL (optional, e.g. http://localhost:11434)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;margin-bottom:6px;box-sizing:border-box">
-        <input id="profileFormApiKey" type="password" data-i18n-placeholder="profile_api_key_placeholder" placeholder="API key (optional)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;margin-bottom:6px;box-sizing:border-box">
+        <label for="profileFormMode" style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="profile_create_mode_label">Create using</label>
+        <select id="profileFormMode" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;margin-bottom:8px;box-sizing:border-box">
+          <option value="custom" data-i18n="profile_create_mode_custom">Custom endpoint</option>
+          <option value="clone" data-i18n="profile_create_mode_clone">Copy existing configuration</option>
+          <option value="managed" data-i18n="profile_create_mode_managed">AITokenCloud online profile</option>
+        </select>
+        <div id="profileFormCloneSourceWrap" style="display:none;margin-bottom:8px">
+          <label for="profileFormCloneFrom" style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px" data-i18n="profile_clone_from_label">Configuration source</label>
+          <select id="profileFormCloneFrom" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;box-sizing:border-box"></select>
+        </div>
+        <div id="profileFormBaseUrlWrap" style="margin-bottom:6px">
+          <input id="profileFormBaseUrl" data-i18n-placeholder="profile_base_url_placeholder" placeholder="Base URL (optional, e.g. http://localhost:11434)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;box-sizing:border-box">
+        </div>
+        <div id="profileFormApiKeyWrap" style="margin-bottom:6px">
+          <input id="profileFormApiKey" type="password" data-i18n-placeholder="profile_api_key_placeholder" placeholder="API key (optional)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;outline:none;box-sizing:border-box">
+        </div>
         <div style="display:flex;gap:6px">
           <button class="cron-btn run" style="flex:1" onclick="submitProfileCreate()" data-i18n="create">Create</button>
           <button class="cron-btn" style="flex:1" onclick="toggleProfileForm()" data-i18n="cancel">Cancel</button>

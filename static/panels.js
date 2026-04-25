@@ -1,5 +1,6 @@
 let _currentPanel = 'chat';
 let _skillsData = null; // cached skills list
+let _profilesPanelCache = [];
 
 async function switchPanel(name) {
   if (name === 'channels' && window._channelsAvailable === false) {
@@ -835,6 +836,7 @@ async function loadProfilesPanel() {
   try {
     const data = await api('/api/profiles');
     _profilesCache = data;
+    _profilesPanelCache = Array.isArray(data.profiles) ? data.profiles : [];
     panel.innerHTML = '';
     if (!data.profiles || !data.profiles.length) {
       panel.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:12px">${esc(t('profiles_no_profiles'))}</div>`;
@@ -1024,36 +1026,126 @@ async function switchToProfile(name) {
   } catch (e) { showToast(t('switch_failed') + e.message); }
 }
 
+function _profileCreateModeOptions() {
+  const modeSel = $('profileFormMode');
+  if (!modeSel) return [];
+  const isKarma = !!window._karmaboxMode;
+  const out = [];
+  for (const opt of Array.from(modeSel.options || [])) {
+    const value = opt.value || '';
+    const allowed = isKarma ? value !== 'custom' : value !== 'managed';
+    opt.hidden = !allowed;
+    opt.disabled = !allowed;
+    if (allowed) out.push(value);
+  }
+  return out;
+}
+
+function _populateProfileCloneSources() {
+  const sourceSel = $('profileFormCloneFrom');
+  if (!sourceSel) return;
+  sourceSel.innerHTML = '';
+  const profiles = Array.isArray(_profilesPanelCache) && _profilesPanelCache.length
+    ? _profilesPanelCache
+    : [{ name: 'default', is_default: true }];
+  for (const p of profiles) {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.is_default ? `${p.name} (${t('profile_default_label')})` : p.name;
+    sourceSel.appendChild(opt);
+  }
+  const activeProfile = S.activeProfile || 'default';
+  if (profiles.some(p => p.name === activeProfile)) sourceSel.value = activeProfile;
+  else if (profiles[0]) sourceSel.value = profiles[0].name;
+}
+
+function syncProfileCreateForm() {
+  const modeSel = $('profileFormMode');
+  if (!modeSel) return;
+  const availableModes = _profileCreateModeOptions();
+  if (!availableModes.length) return;
+  if (!availableModes.includes(modeSel.value)) modeSel.value = availableModes[0];
+  const mode = modeSel.value;
+  const sourceWrap = $('profileFormCloneSourceWrap');
+  const baseWrap = $('profileFormBaseUrlWrap');
+  const apiWrap = $('profileFormApiKeyWrap');
+  const sourceSel = $('profileFormCloneFrom');
+  const baseInput = $('profileFormBaseUrl');
+  const apiInput = $('profileFormApiKey');
+  const errEl = $('profileFormError');
+  const managedBaseUrl = window._karmaboxModelBaseUrl || 'https://api.aitokencloud.com';
+  const isClone = mode === 'clone';
+  const isManaged = mode === 'managed';
+  if (sourceWrap) sourceWrap.style.display = isClone ? '' : 'none';
+  if (baseWrap) baseWrap.style.display = isClone ? 'none' : '';
+  if (apiWrap) apiWrap.style.display = isClone ? 'none' : '';
+  if (sourceSel) sourceSel.disabled = !isClone;
+  if (baseInput) {
+    if (isManaged) {
+      baseInput.value = managedBaseUrl;
+      baseInput.readOnly = true;
+      baseInput.disabled = true;
+      baseInput.style.opacity = '0.65';
+      baseInput.title = managedBaseUrl;
+    } else {
+      baseInput.readOnly = false;
+      baseInput.disabled = false;
+      baseInput.style.opacity = '';
+      baseInput.title = '';
+    }
+  }
+  if (apiInput) apiInput.disabled = isClone;
+  if (errEl) errEl.style.display = 'none';
+}
+
 function toggleProfileForm() {
   const form = $('profileCreateForm');
   if (!form) return;
   form.style.display = form.style.display === 'none' ? '' : 'none';
   if (form.style.display !== 'none') {
     $('profileFormName').value = '';
-    $('profileFormClone').checked = false;
+    _populateProfileCloneSources();
+    const modeSel = $('profileFormMode');
+    if (modeSel) {
+      modeSel.value = window._karmaboxMode ? 'managed' : 'custom';
+      modeSel.onchange = syncProfileCreateForm;
+    }
     if ($('profileFormBaseUrl')) $('profileFormBaseUrl').value = '';
     if ($('profileFormApiKey')) $('profileFormApiKey').value = '';
     const errEl = $('profileFormError');
     if (errEl) errEl.style.display = 'none';
+    syncProfileCreateForm();
     $('profileFormName').focus();
   }
 }
 
 async function submitProfileCreate() {
   const name = ($('profileFormName').value || '').trim().toLowerCase();
-  const cloneConfig = $('profileFormClone').checked;
+  const createMode = (($('profileFormMode') && $('profileFormMode').value) || 'custom').trim();
   const errEl = $('profileFormError');
   if (!name) { errEl.textContent = t('name_required'); errEl.style.display = ''; return; }
   if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) { errEl.textContent = t('profile_name_rule'); errEl.style.display = ''; return; }
   try {
     const baseUrl = (($('profileFormBaseUrl') && $('profileFormBaseUrl').value) || '').trim();
     const apiKey = (($('profileFormApiKey') && $('profileFormApiKey').value) || '').trim();
-    if (baseUrl && !/^https?:\/\//.test(baseUrl)) {
+    const cloneFrom = (($('profileFormCloneFrom') && $('profileFormCloneFrom').value) || '').trim();
+    if (createMode !== 'clone' && baseUrl && !/^https?:\/\//.test(baseUrl)) {
       errEl.textContent = t('profile_base_url_rule'); errEl.style.display = ''; return;
     }
-    const payload = { name, clone_config: cloneConfig };
-    if (baseUrl) payload.base_url = baseUrl;
-    if (apiKey) payload.api_key = apiKey;
+    if (createMode === 'managed' && !apiKey) {
+      errEl.textContent = t('profile_api_key_required'); errEl.style.display = ''; return;
+    }
+    if (createMode === 'clone' && !cloneFrom) {
+      errEl.textContent = t('profile_clone_from_required'); errEl.style.display = ''; return;
+    }
+    const payload = { name, create_mode: createMode };
+    if (createMode === 'clone') {
+      payload.clone_config = true;
+      payload.clone_from = cloneFrom;
+    } else {
+      if (baseUrl) payload.base_url = baseUrl;
+      if (apiKey) payload.api_key = apiKey;
+    }
     await api('/api/profile/create', { method: 'POST', body: JSON.stringify(payload) });
     toggleProfileForm();
     await loadProfilesPanel();
