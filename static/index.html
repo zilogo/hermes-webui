@@ -599,6 +599,9 @@
               </select>
               <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="settings_desc_sidebar_density">Controls how much metadata the session list shows in the left sidebar.</div>
             </div>
+            <!-- Temporarily hide these advanced preferences in the WebUI. Keep
+                 the backend settings intact so existing values continue to work. -->
+            <!--
             <div class="settings-field">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
                 <input type="checkbox" id="settingsShowCliSessions" style="width:15px;height:15px;accent-color:var(--accent)">
@@ -620,6 +623,7 @@
               </label>
               <div style="font-size:11px;color:var(--muted);margin-top:4px" data-i18n="settings_desc_check_updates">Show a banner when newer versions of the WebUI or Agent are available. Runs a background git fetch periodically.</div>
             </div>
+            -->
             <div class="settings-field">
               <label for="settingsBotName" data-i18n="settings_label_bot_name">Assistant Name</label>
               <div style="font-size:11px;color:var(--muted);margin-bottom:6px" data-i18n="settings_desc_bot_name">Display name for the assistant throughout the UI. Defaults to KarmaBox.</div>

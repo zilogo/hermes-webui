@@ -1209,6 +1209,7 @@ let _settingsThemeOnOpen = null; // track theme at open time for discard revert
 let _settingsSkinOnOpen = null; // track skin at open time for discard revert
 let _settingsHermesDefaultModelOnOpen = '';
 let _settingsSection = 'conversation';
+let _settingsPanelSnapshot = null;
 
 function switchSettingsSection(name){
   const section=(name==='appearance'||name==='preferences'||name==='system')?name:'conversation';
@@ -1331,6 +1332,7 @@ function _markSettingsDirty(){
 async function loadSettingsPanel(){
   try{
     const settings=await api('/api/settings');
+    _settingsPanelSnapshot = settings || {};
     // Populate the version badge from the server — keeps it in sync with git
     // tags automatically without any manual release step.
     const vbadge=document.querySelector('.settings-version-badge');
@@ -1470,8 +1472,14 @@ async function saveSettings(andClose){
   const model=($('settingsModel')||{}).value;
   const modelChanged=(model||'')!==(_settingsHermesDefaultModelOnOpen||'');
   const sendKey=($('settingsSendKey')||{}).value;
-  const showTokenUsage=!!($('settingsShowTokenUsage')||{}).checked;
-  const showCliSessions=!!($('settingsShowCliSessions')||{}).checked;
+  const showTokenUsageControl=$('settingsShowTokenUsage');
+  const showCliSessionsControl=$('settingsShowCliSessions');
+  const syncInsightsControl=$('settingsSyncInsights');
+  const checkUpdatesControl=$('settingsCheckUpdates');
+  const showTokenUsage=!!(showTokenUsageControl||{}).checked;
+  const showCliSessions=showCliSessionsControl
+    ? !!showCliSessionsControl.checked
+    : !!((_settingsPanelSnapshot||{}).show_cli_sessions);
   const pw=($('settingsPassword')||{}).value;
   const theme=($('settingsTheme')||{}).value||'dark';
   const skin=($('settingsSkin')||{}).value||'default';
@@ -1484,9 +1492,9 @@ async function saveSettings(andClose){
   body.skin=skin;
   body.language=language;
   body.show_token_usage=showTokenUsage;
-  body.show_cli_sessions=showCliSessions;
-  body.sync_to_insights=!!($('settingsSyncInsights')||{}).checked;
-  body.check_for_updates=!!($('settingsCheckUpdates')||{}).checked;
+  if(showCliSessionsControl) body.show_cli_sessions=showCliSessions;
+  if(syncInsightsControl) body.sync_to_insights=!!syncInsightsControl.checked;
+  if(checkUpdatesControl) body.check_for_updates=!!checkUpdatesControl.checked;
   body.sound_enabled=!!($('settingsSoundEnabled')||{}).checked;
   body.notifications_enabled=!!($('settingsNotificationsEnabled')||{}).checked;
   body.show_thinking=window._showThinking!==false;
