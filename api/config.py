@@ -1666,7 +1666,7 @@ def _get_session_agent_lock(session_id: str) -> threading.Lock:
 
 _SETTINGS_DEFAULTS = {
     "default_workspace": str(DEFAULT_WORKSPACE),
-    "onboarding_completed": False,
+    "onboarding_completed": True,
     "send_key": "enter",  # 'enter' or 'ctrl+enter'
     "show_token_usage": False,  # show input/output token badge below assistant messages
     "show_cli_sessions": False,  # merge CLI sessions from state.db into the sidebar
@@ -1674,7 +1674,7 @@ _SETTINGS_DEFAULTS = {
     "check_for_updates": True,  # check if webui/agent repos are behind upstream
     "theme": "dark",  # light | dark | system
     "skin": "karma",  # branded default skin for KarmaBox builds
-    "language": "en",  # UI locale code; must match a key in static/i18n.js LOCALES
+    "language": "zh",  # UI locale code; must match a key in static/i18n.js LOCALES
     "bot_name": os.getenv(
         "HERMES_WEBUI_BOT_NAME", "KarmaBox"
     ),  # display name for the assistant
