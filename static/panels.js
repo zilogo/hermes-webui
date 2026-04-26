@@ -445,6 +445,7 @@ async function openSkill(name, el) {
     });
     $('previewArea').classList.add('visible');
     $('fileTree').style.display = 'none';
+    const emptyEl=$('wsEmptyState');if(emptyEl)emptyEl.style.display='none';
   } catch(e) { setStatus(t('skill_load_failed') + e.message); }
 }
 
@@ -699,6 +700,20 @@ async function loadWorkspacesPanel(){
   renderWorkspacesPanel(data.workspaces);
 }
 
+async function refreshWorkspaceAfterProfileSwitch(previousWorkspace){
+  closeWsDropdown();
+  const currentWorkspace=(S.session&&S.session.workspace)||'';
+  const workspaceChanged=!!(currentWorkspace && currentWorkspace!==previousWorkspace);
+  if(workspaceChanged && typeof clearPreview==='function'){
+    clearPreview();
+  }
+  if(typeof syncTopbar==='function') syncTopbar();
+  if(workspaceChanged && typeof loadDir==='function'){
+    await loadDir('.');
+  }
+  if(typeof syncWorkspacePanelState==='function') syncWorkspacePanelState();
+}
+
 function renderWorkspacesPanel(workspaces){
   const panel=$('workspacesPanel');
   panel.innerHTML='';
@@ -942,6 +957,7 @@ async function switchToProfile(name) {
   // A session with messages is "in progress" and belongs to the current profile —
   // we must not retag it.  We'll start a fresh session for the new profile instead.
   const sessionInProgress = S.session && S.messages && S.messages.length > 0;
+  const previousWorkspace = (S.session && S.session.workspace) || '';
 
   try {
     const data = await api('/api/profile/switch', { method: 'POST', body: JSON.stringify({ name }) });
@@ -980,8 +996,10 @@ async function switchToProfile(name) {
             session_id: S.session.session_id,
             workspace: data.default_workspace,
             model: S.session.model,
+            profile: data.active || name,
           })});
           S.session.workspace = data.default_workspace;
+          S.session.profile = data.active || name;
         } catch (_) {}
       }
     }
@@ -1000,17 +1018,19 @@ async function switchToProfile(name) {
             session_id: S.session.session_id,
             workspace: S._profileDefaultWorkspace,
             model: S.session.model,
+            profile: data.active || name,
           })});
           S.session.workspace = S._profileDefaultWorkspace;
+          S.session.profile = data.active || name;
         } catch (_) {}
       }
-      updateWorkspaceChip();
       await renderSessionList();
+      await refreshWorkspaceAfterProfileSwitch(previousWorkspace);
       showToast(t('profile_switched_new_conversation', name));
     } else {
       // No messages yet — just refresh the list and topbar in place
       await renderSessionList();
-      syncTopbar();
+      await refreshWorkspaceAfterProfileSwitch(previousWorkspace);
       showToast(t('profile_switched', name));
     }
 

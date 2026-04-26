@@ -18,6 +18,7 @@ import unittest
 REPO = pathlib.Path(__file__).parent.parent
 HTML = (REPO / "static" / "index.html").read_text(encoding="utf-8")
 BOOT_JS = (REPO / "static" / "boot.js").read_text(encoding="utf-8")
+PANELS_JS = (REPO / "static" / "panels.js").read_text(encoding="utf-8")
 
 
 class TestMobileCloseButtonBehavior(unittest.TestCase):
@@ -127,6 +128,25 @@ class TestDesktopNoDuplicateXButton(unittest.TestCase):
             'id="btnCollapseWorkspacePanel"',
             HTML,
             "#btnCollapseWorkspacePanel must remain in index.html",
+        )
+
+
+class TestProfileSwitchPreviewReset(unittest.TestCase):
+    """Profile switches must not leave a stale file preview under a new workspace."""
+
+    def test_refresh_workspace_after_profile_switch_clears_preview_on_workspace_change(self):
+        start = PANELS_JS.find("async function refreshWorkspaceAfterProfileSwitch(previousWorkspace)")
+        self.assertNotEqual(
+            start,
+            -1,
+            "refreshWorkspaceAfterProfileSwitch() not found in panels.js",
+        )
+        fn_window = PANELS_JS[start : start + 500]
+        self.assertIn(
+            "clearPreview()",
+            fn_window,
+            "refreshWorkspaceAfterProfileSwitch() must clear the old file preview "
+            "before loading the new workspace when the profile switch changes workspace",
         )
 
 

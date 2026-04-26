@@ -162,6 +162,25 @@ def test_session_update():
     assert reloaded["session"]["model"] == "anthropic/claude-sonnet-4.6"
 
 
+def test_session_update_can_rebind_profile():
+    """Updating an empty session after a profile switch should persist the new profile."""
+    data, _ = post("/api/session/new", {})
+    sid = data["session"]["session_id"]
+    current_ws = pathlib.Path(data["session"]["workspace"])
+    current_ws.mkdir(parents=True, exist_ok=True)
+
+    updated, status = post("/api/session/update", {
+        "session_id": sid,
+        "workspace": str(current_ws),
+        "profile": "test1",
+    })
+    assert status == 200
+    assert updated["session"]["profile"] == "test1"
+
+    reloaded = get(f"/api/session?session_id={sid}")
+    assert reloaded["session"]["profile"] == "test1"
+
+
 def test_session_delete():
     """Create session, delete it, verify it no longer loads."""
     data, _ = post("/api/session/new", {})

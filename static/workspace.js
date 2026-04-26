@@ -200,6 +200,7 @@ async function openFile(path){
   $('previewPathText').textContent=path;
   $('previewArea').classList.add('visible');
   $('fileTree').style.display='none';
+  const emptyEl=$('wsEmptyState');if(emptyEl)emptyEl.style.display='none';
 
   _previewCurrentPath = path;
   renderFileBreadcrumb(path);

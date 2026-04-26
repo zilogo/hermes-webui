@@ -425,6 +425,7 @@ function clearPreview(){
   _previewCurrentPath='';_previewCurrentMode='';_previewDirty=false;
   // Restore directory breadcrumb after closing file preview
   if(typeof renderBreadcrumb==='function') renderBreadcrumb();
+  if(typeof renderFileTree==='function') renderFileTree();
   if(closePanelAfter)closeWorkspacePanel();
   else syncWorkspacePanelUI();
 }

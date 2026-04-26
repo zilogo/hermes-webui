@@ -54,16 +54,45 @@ def _last_workspace_file() -> Path:
     return _profile_state_dir() / 'last_workspace.txt'
 
 
+def _is_default_profile() -> bool:
+    """Return True when the active profile is the default/global profile."""
+    try:
+        from api.profiles import get_active_profile_name
+
+        return get_active_profile_name() in ('default', None)
+    except ImportError:
+        return True
+
+
+def _named_profile_workspace_dir() -> str | None:
+    """Return ``<profile>/workspace`` for the active named profile when available."""
+    try:
+        from api.profiles import get_active_profile_name, get_active_hermes_home
+
+        if get_active_profile_name() in ('default', None):
+            return None
+        workspace_dir = (get_active_hermes_home() / 'workspace').expanduser().resolve()
+        if workspace_dir.is_dir():
+            return str(workspace_dir)
+    except (ImportError, Exception):
+        logger.debug("Failed to resolve named-profile workspace directory")
+    return None
+
+
 def _profile_default_workspace() -> str:
     """Read the profile's default workspace from its config.yaml.
 
     Checks keys in priority order:
-      1. 'workspace'         — explicit webui workspace key
-      2. 'default_workspace' — alternate explicit key
-      3. 'terminal.cwd'      — hermes-agent terminal working dir (most common)
+      1. Named profile's own ``<profile>/workspace`` directory
+      2. 'workspace'         — explicit webui workspace key
+      3. 'default_workspace' — alternate explicit key
+      4. 'terminal.cwd'      — hermes-agent terminal working dir (most common)
 
     Falls back to the boot-time DEFAULT_WORKSPACE constant.
     """
+    named_workspace = _named_profile_workspace_dir()
+    if named_workspace:
+        return named_workspace
     try:
         from api.config import get_config
         cfg = get_config()
@@ -191,23 +220,56 @@ def save_workspaces(workspaces: list) -> None:
 
 
 def get_last_workspace() -> str:
+    is_default = _is_default_profile()
     lw_file = _last_workspace_file()
     if lw_file.exists():
         try:
             p = lw_file.read_text(encoding='utf-8').strip()
             if p and Path(p).is_dir():
-                return p
+                if is_default:
+                    return p
+                # Named profiles should not silently inherit or keep a stale
+                # global workspace.  Accept the saved path only when it is still
+                # present in this profile's saved workspace list.
+                try:
+                    saved = load_workspaces()
+                    saved_paths = {
+                        str(Path(w["path"]).expanduser().resolve())
+                        for w in saved
+                        if w.get("path")
+                    }
+                    resolved = str(Path(p).expanduser().resolve())
+                    if not saved_paths or resolved in saved_paths:
+                        return resolved
+                    fallback = next(iter(saved_paths), _profile_default_workspace())
+                    set_last_workspace(fallback)
+                    return fallback
+                except Exception:
+                    logger.debug("Failed to validate named-profile last workspace")
+                    return p
         except Exception:
             logger.debug("Failed to read last workspace from %s", lw_file)
-    # Fallback: try global file
-    if _GLOBAL_LW_FILE.exists():
+    # Fallback to the global file only for the default profile.
+    if is_default and _GLOBAL_LW_FILE.exists():
         try:
             p = _GLOBAL_LW_FILE.read_text(encoding='utf-8').strip()
             if p and Path(p).is_dir():
                 return p
         except Exception:
             logger.debug("Failed to read global last workspace")
-    return _profile_default_workspace()
+    if not is_default:
+        try:
+            saved = load_workspaces()
+            if saved:
+                fallback = str(Path(saved[0]["path"]).expanduser().resolve())
+                set_last_workspace(fallback)
+                return fallback
+        except Exception:
+            logger.debug("Failed to load named-profile workspace list for fallback")
+    fallback = _profile_default_workspace()
+    if not is_default:
+        set_last_workspace(fallback)
+    return fallback
 
 
 def set_last_workspace(path: str) -> None:

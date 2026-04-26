@@ -123,6 +123,21 @@ def clear_request_profile() -> None:
     _tls.profile = None
 
 
+def _get_profile_last_workspace(name: str) -> str:
+    """Read the last workspace for a specific profile without changing globals."""
+    previous = getattr(_tls, 'profile', None)
+    set_request_profile(name)
+    try:
+        from api.workspace import get_last_workspace
+
+        return get_last_workspace()
+    finally:
+        if previous is None:
+            clear_request_profile()
+        else:
+            set_request_profile(previous)
+
+
 def get_active_hermes_home() -> Path:
     """Return the HERMES_HOME path for the currently active profile.
 
@@ -286,7 +301,6 @@ def switch_profile(name: str, *, process_wide: bool = True) -> dict:
     # For process_wide=False (per-client switch), read the target profile's
     # config.yaml directly from disk rather than from _cfg_cache (process-global),
     # since reload_config() was intentionally skipped.
-    from api.workspace import get_last_workspace
     if process_wide:
         from api.config import get_config
         cfg = get_config()
@@ -311,7 +325,7 @@ def switch_profile(name: str, *, process_wide: bool = True) -> dict:
         'profiles': list_profiles_api(),
         'active': name,
         'default_model': default_model,
-        'default_workspace': get_last_workspace(),
+        'default_workspace': _get_profile_last_workspace(name),
     }
 
 
@@ -462,6 +476,46 @@ def _write_endpoint_to_config(profile_dir: Path,
     config_path.write_text(_yaml.dump(cfg, default_flow_style=False, allow_unicode=True), encoding='utf-8')
 
 
+def _copy_missing_profile_config_files(profile_dir: Path, clone_from: str | None) -> None:
+    """Backfill clone-mode config files when the profile creator skipped them."""
+    if not clone_from:
+        return
+    source_dir = _DEFAULT_HERMES_HOME if clone_from == 'default' else _DEFAULT_HERMES_HOME / 'profiles' / clone_from
+    if not source_dir.is_dir():
+        return
+    for name in _CLONE_CONFIG_FILES:
+        src = source_dir / name
+        dst = profile_dir / name
+        if src.exists() and not dst.exists():
+            try:
+                shutil.copy2(src, dst)
+            except Exception:
+                logger.debug("Failed to clone missing profile file %s -> %s", src, dst)
+
+
+def _initialize_profile_workspace_state(profile_dir: Path) -> None:
+    """Seed a new profile's WebUI workspace state to its own workspace dir.
+
+    New profiles should not inherit the global/default profile workspace from
+    the WebUI.  Point them at ``<profile>/workspace`` immediately so the first
+    profile switch lands in their isolated workspace by default.
+    """
+    workspace_dir = (profile_dir / "workspace").resolve()
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+
+    webui_state_dir = profile_dir / "webui_state"
+    webui_state_dir.mkdir(parents=True, exist_ok=True)
+
+    (webui_state_dir / "last_workspace.txt").write_text(
+        str(workspace_dir),
+        encoding="utf-8",
+    )
+    (webui_state_dir / "workspaces.json").write_text(
+        json.dumps([{"path": str(workspace_dir), "name": "Home"}], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def create_profile_api(name: str, clone_from: str = None,
                        clone_config: bool = False,
                        create_mode: str = None,
@@ -519,12 +573,26 @@ def create_profile_api(name: str, clone_from: str = None,
             break
 
     profile_path.mkdir(parents=True, exist_ok=True)
+    if clone_config:
+        _copy_missing_profile_config_files(profile_path, clone_from)
     _write_endpoint_to_config(
         profile_path,
         base_url=base_url,
         api_key=api_key,
         managed_profile=(create_mode == 'managed'),
     )
+    _initialize_profile_workspace_state(profile_path)
+
+    # Match CLI behaviour so WebUI-created profiles immediately get the
+    # bundled skill set. Seed failures should not block profile creation.
+    try:
+        from hermes_cli.profiles import seed_profile_skills
+
+        result = seed_profile_skills(profile_path, quiet=True)
+        if result is None:
+            logger.warning("Bundled skill seeding returned no result for profile '%s'", name)
+    except Exception:
+        logger.exception("Failed to seed bundled skills for profile '%s'", name)
 
     # Find and return the newly created profile info.
     # When hermes_cli is not importable, list_profiles_api() also falls back

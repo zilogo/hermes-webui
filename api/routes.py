@@ -1057,8 +1057,19 @@ def handle_post(handler, parsed) -> bool:
             new_ws = str(resolve_trusted_workspace(body.get("workspace", s.workspace)))
         except ValueError as e:
             return bad(handler, str(e))
+        new_profile = body.get("profile", s.profile)
+        if new_profile in ("", None):
+            new_profile = "default"
+        if new_profile != "default":
+            try:
+                from api.profiles import _validate_profile_name
+
+                _validate_profile_name(str(new_profile))
+            except ValueError as e:
+                return bad(handler, str(e))
         s.workspace = new_ws
         s.model = body.get("model", s.model)
+        s.profile = str(new_profile)
         s.save()
         set_last_workspace(new_ws)
         return j(handler, {"session": s.compact() | {"messages": s.messages}})

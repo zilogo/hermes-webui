@@ -89,6 +89,7 @@ class TestCreateProfileModes:
         import api.profiles as profiles
 
         created = {}
+        seeded = {}
 
         def _fake_create_profile(name, clone_from=None, clone_config=False, clone_all=False, no_alias=True):
             profile_dir = tmp_path / "profiles" / name
@@ -100,9 +101,21 @@ class TestCreateProfileModes:
                 "no_alias": no_alias,
             }
 
+        def _fake_seed_profile_skills(profile_dir, quiet=True):
+            seeded["profile_dir"] = profile_dir
+            seeded["quiet"] = quiet
+            return {"copied": ["demo-skill"], "updated": [], "user_modified": [], "cleaned": []}
+
         monkeypatch.setattr(profiles, "_DEFAULT_HERMES_HOME", tmp_path)
         monkeypatch.setattr(profiles, "list_profiles_api", lambda: [])
-        monkeypatch.setitem(sys.modules, "hermes_cli.profiles", types.SimpleNamespace(create_profile=_fake_create_profile))
+        monkeypatch.setitem(
+            sys.modules,
+            "hermes_cli.profiles",
+            types.SimpleNamespace(
+                create_profile=_fake_create_profile,
+                seed_profile_skills=_fake_seed_profile_skills,
+            ),
+        )
         monkeypatch.setenv("KARMABOX_MODE", "true")
         monkeypatch.setenv("KARMABOX_MODEL_BASE_URL", "https://managed.example.com/v1/")
 
@@ -113,9 +126,15 @@ class TestCreateProfileModes:
         )
 
         cfg = yaml.safe_load((tmp_path / "profiles" / "managed-sprint31" / "config.yaml").read_text())
+        last_workspace = (tmp_path / "profiles" / "managed-sprint31" / "webui_state" / "last_workspace.txt").read_text(encoding="utf-8").strip()
+        workspace_items = json.loads((tmp_path / "profiles" / "managed-sprint31" / "webui_state" / "workspaces.json").read_text(encoding="utf-8"))
         assert result["name"] == "managed-sprint31"
         assert created["args"]["clone_from"] is None
         assert created["args"]["clone_config"] is False
+        assert seeded["profile_dir"] == tmp_path / "profiles" / "managed-sprint31"
+        assert seeded["quiet"] is True
+        assert last_workspace == str((tmp_path / "profiles" / "managed-sprint31" / "workspace").resolve())
+        assert workspace_items == [{"path": last_workspace, "name": "Home"}]
         assert cfg["model"]["provider"] == "custom"
         assert cfg["model"]["base_url"] == "https://managed.example.com/v1"
         assert cfg["model"]["api_key"] == "sk-managed-test"

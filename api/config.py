@@ -228,7 +228,10 @@ else:
 # ── Config file (reloadable -- supports profile switching) ──────────────────
 _cfg_cache = {}
 _cfg_lock = threading.Lock()
-_cfg_mtime: float = 0.0  # last known mtime of config.yaml; 0 = never loaded
+_cfg_mtime: float = 0.0  # last known mtime of the active config.yaml
+_cfg_active_path: str | None = None
+_cfg_cache_by_path: dict[str, dict] = {}
+_cfg_mtime_by_path: dict[str, float] = {}
 
 
 def _get_config_path() -> Path:
@@ -253,32 +256,87 @@ def _get_config_path() -> Path:
         return HOME / ".hermes" / "config.yaml"
 
 
+def _config_cache_key(config_path: Path | None = None) -> str:
+    """Return the canonical cache key for a config path."""
+    path = config_path if config_path is not None else _get_config_path()
+    return str(Path(path).expanduser().resolve())
+
+
+def _load_config_snapshot(config_path: Path) -> tuple[dict, float]:
+    """Read a config.yaml file from disk and return (data, mtime)."""
+    loaded_cfg: dict = {}
+    loaded_mtime = 0.0
+    try:
+        import yaml as _yaml
+
+        if config_path.exists():
+            loaded = _yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                loaded_cfg = loaded
+            try:
+                loaded_mtime = Path(config_path).stat().st_mtime
+            except OSError:
+                loaded_mtime = 0.0
+    except Exception:
+        logger.debug("Failed to load yaml config from %s", config_path)
+    return loaded_cfg, loaded_mtime
+
+
+def _activate_config_snapshot(config_path: Path, loaded_cfg: dict, loaded_mtime: float) -> dict:
+    """Switch the active config alias to the given snapshot.
+
+    ``cfg`` remains the long-lived module-level dict for backward compatibility;
+    we swap its contents in place so callers holding the old alias still see the
+    active profile's config.
+    """
+    global _cfg_mtime, _cfg_active_path
+    next_key = _config_cache_key(config_path)
+    if _cfg_active_path is not None:
+        _cfg_cache_by_path[_cfg_active_path] = copy.deepcopy(_cfg_cache)
+        _cfg_mtime_by_path[_cfg_active_path] = _cfg_mtime
+    _cfg_cache.clear()
+    _cfg_cache.update(loaded_cfg)
+    _cfg_mtime = loaded_mtime
+    _cfg_active_path = next_key
+    _cfg_cache_by_path[next_key] = copy.deepcopy(_cfg_cache)
+    _cfg_mtime_by_path[next_key] = loaded_mtime
+    return _cfg_cache
+
+
+def _ensure_active_config(*, force_reload: bool = False) -> dict:
+    """Ensure the active profile's config is loaded into the compatibility alias."""
+    with _cfg_lock:
+        config_path = _get_config_path()
+        config_key = _config_cache_key(config_path)
+        current_mtime = _cfg_mtime_by_path.get(config_key, 0.0)
+
+        if not force_reload and config_key == _cfg_active_path and _cfg_cache:
+            return _cfg_cache
+
+        if not force_reload and config_key in _cfg_cache_by_path:
+            try:
+                disk_mtime = Path(config_path).stat().st_mtime
+            except OSError:
+                disk_mtime = 0.0
+            if disk_mtime == current_mtime:
+                return _activate_config_snapshot(
+                    config_path,
+                    _cfg_cache_by_path[config_key],
+                    current_mtime,
+                )
+
+        loaded_cfg, loaded_mtime = _load_config_snapshot(config_path)
+        return _activate_config_snapshot(config_path, loaded_cfg, loaded_mtime)
+
+
 def get_config() -> dict:
     """Return the cached config dict, loading from disk if needed."""
-    if not _cfg_cache:
-        reload_config()
-    return _cfg_cache
+    return _ensure_active_config()
 
 
 def reload_config() -> None:
     """Reload config.yaml from the active profile's directory."""
-    global _cfg_mtime
-    with _cfg_lock:
-        _cfg_cache.clear()
-        config_path = _get_config_path()
-        try:
-            import yaml as _yaml
-
-            if config_path.exists():
-                loaded = _yaml.safe_load(config_path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    _cfg_cache.update(loaded)
-                    try:
-                        _cfg_mtime = Path(config_path).stat().st_mtime
-                    except OSError:
-                        _cfg_mtime = 0.0
-        except Exception:
-            logger.debug("Failed to load yaml config from %s", config_path)
+    _ensure_active_config(force_reload=True)
 
 
 def _load_yaml_config_file(config_path: Path) -> dict:
@@ -853,6 +911,7 @@ def resolve_model_provider(model_id: str) -> tuple:
 
     Returns (model, provider, base_url) where provider and base_url may be None.
     """
+    _ensure_active_config()
     config_provider = None
     config_base_url = None
     managed_profile = False
@@ -924,6 +983,8 @@ def resolve_model_provider(model_id: str) -> tuple:
 
 def get_effective_default_model(config_data: dict | None = None) -> str:
     """Resolve the effective Hermes default model from config, then env overrides."""
+    if config_data is None:
+        _ensure_active_config()
     active_cfg = config_data if config_data is not None else cfg
     default_model = DEFAULT_MODEL
 
@@ -1124,6 +1185,11 @@ def get_available_models() -> dict:
     # Must run BEFORE the TTL check so config edits within the 60s window are visible.
     global _available_models_cache, _available_models_cache_ts
     with _available_models_cache_lock:
+        current_config_key = _config_cache_key()
+        if current_config_key != _cfg_active_path:
+            _ensure_active_config()
+            _available_models_cache = None
+            _available_models_cache_ts = 0.0
         try:
             _current_mtime = Path(_get_config_path()).stat().st_mtime
         except OSError:
@@ -1139,14 +1205,15 @@ def get_available_models() -> dict:
         now = time.monotonic()
         if _available_models_cache is not None and (now - _available_models_cache_ts) < _AVAILABLE_MODELS_CACHE_TTL:
             return copy.deepcopy(_available_models_cache)
+    active_cfg = get_config()
     active_provider = None
-    default_model = get_effective_default_model(cfg)
+    default_model = get_effective_default_model(active_cfg)
     groups = []
 
     # 1. Read config.yaml model section
     cfg_base_url = ""  # must be defined before conditional blocks (#117)
     managed_profile = False
-    model_cfg = cfg.get("model", {})
+    model_cfg = active_cfg.get("model", {})
     cfg_base_url = ""
     if isinstance(model_cfg, str):
         pass  # default_model already set by get_effective_default_model
@@ -1156,7 +1223,7 @@ def get_available_models() -> dict:
         cfg_base_url = model_cfg.get("base_url", "")
         if cfg_default:
             default_model = cfg_default
-    kb_cfg = cfg.get("karmabox", {})
+    kb_cfg = active_cfg.get("karmabox", {})
     if isinstance(kb_cfg, dict):
         managed_profile = bool(kb_cfg.get("managed_profile"))
 
@@ -1423,7 +1490,7 @@ def get_available_models() -> dict:
     # use it as the dropdown section header instead of the generic "Custom"
     # label.  Internally we key these providers as "custom:<slug>" so that
     # multiple named custom providers can coexist as separate groups.
-    _custom_providers_cfg = cfg.get("custom_providers", [])
+    _custom_providers_cfg = active_cfg.get("custom_providers", [])
     # Maps "custom:<slug>" -> (display_name, [model_dicts])
     _named_custom_groups: dict = {}
     if isinstance(_custom_providers_cfg, list):
@@ -1503,7 +1570,7 @@ def get_available_models() -> dict:
                         ],
                     }
                 )
-            elif pid in _PROVIDER_MODELS or pid in cfg.get("providers", {}):
+            elif pid in _PROVIDER_MODELS or pid in active_cfg.get("providers", {}):
                 # For non-default providers, prefix model IDs with @provider:model
                 # so resolve_model_provider() routes through that specific provider
                 # via resolve_runtime_provider(requested=provider).
@@ -1511,7 +1578,7 @@ def get_available_models() -> dict:
                 raw_models = _PROVIDER_MODELS.get(pid, [])
                 
                 # Override or merge from config.yaml if user specified explicit models
-                provider_cfg = cfg.get("providers", {}).get(pid, {})
+                provider_cfg = active_cfg.get("providers", {}).get(pid, {})
                 if isinstance(provider_cfg, dict) and "models" in provider_cfg:
                     cfg_models = provider_cfg["models"]
                     if isinstance(cfg_models, dict):
