@@ -22,6 +22,14 @@ class TestGeneratedTitleSanitization(unittest.TestCase):
             "Clarifying Topic for Discussion",
         )
 
+    def test_rejects_thinking_process_reasoning_leak(self):
+        self.assertEqual(
+            _sanitize_generated_title(
+                "Thinking Process: 1. **Analyze the Request:** * Input: a conversation start"
+            ),
+            "",
+        )
+
     def test_first_exchange_skips_empty_assistant_tool_call_placeholder(self):
         messages = [
             {"role": "user", "content": "What time is it in San Francisco?"},
