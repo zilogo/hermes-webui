@@ -148,15 +148,38 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
   let liveReasoningText='';
   let assistantRow=null;
   let assistantBody=null;
+  let _progressStatusRank=-1;
   // Thinking tag patterns for streaming display
   const _thinkPairs=[
     {open:'<think>',close:'</think>'},
     {open:'<|channel>thought\n',close:'<channel|>'},
     {open:'<|turn|>thinking\n',close:'<turn|>'}  // Gemma 4
   ];
+  const _progressStatusRanks={
+    generic: 0,
+    reasoning: 1,
+    tool: 2,
+    generating: 3,
+  };
 
   function _isActiveSession(){
     return !!(S.session&&S.session.session_id===activeSid);
+  }
+  function _clearProgressStatus(force=false){
+    if(force || _isActiveSession()) setComposerStatus('');
+    _progressStatusRank=-1;
+  }
+  function _setProgressStatus(kind, force=false){
+    const rank=_progressStatusRanks[kind];
+    if(rank===undefined) return;
+    if(!force && rank<_progressStatusRank) return;
+    if(!_isActiveSession()) return;
+    let text='正在处理...';
+    if(kind==='reasoning') text='正在思考...';
+    else if(kind==='tool') text='正在调用工具...';
+    else if(kind==='generating') text='正在生成...';
+    _progressStatusRank=rank;
+    setComposerStatus(text);
   }
   function persistInflightState(){
     const inflight=INFLIGHT[activeSid];
@@ -344,6 +367,8 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
     // the fixes below (_streamFinalized guard + cancelAnimationFrame in the
     // terminal handlers) address it without needing a reset here.
 
+    _setProgressStatus('generic', true);
+
     source.addEventListener('token',e=>{
       if(!S.session||S.session.session_id!==activeSid) return;
       const d=JSON.parse(e.data);
@@ -357,6 +382,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
 
     source.addEventListener('reasoning',e=>{
       const d=JSON.parse(e.data);
+      _setProgressStatus('reasoning');
       reasoningText += d.text || '';
       liveReasoningText += d.text || '';
       syncInflightAssistantMessage();
@@ -367,6 +393,11 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
     source.addEventListener('tool',e=>{
       const d=JSON.parse(e.data);
       if(d.name==='clarify') return;
+      if(d.name==='write_file'){
+        _setProgressStatus('generating');
+      }else{
+        _setProgressStatus('tool');
+      }
       const tc={name:d.name, preview:d.preview||'', args:d.args||{}, snippet:'', done:false, tid:d.tid||`live-${Date.now()}-${Math.random().toString(36).slice(2,8)}`};
       const inflight = INFLIGHT[activeSid] || (INFLIGHT[activeSid] = {
         messages:[...S.messages],
@@ -488,6 +519,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
         S.activeStreamId=null;
         const _cb=$('btnCancel');if(_cb)_cb.style.display='none';
       }
+      _clearProgressStatus();
       if(S.session&&S.session.session_id===activeSid){
         S.session=d.session;S.messages=d.session.messages||[];
         // Find the last assistant message once for both reasoning persistence and timestamp
@@ -543,6 +575,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
       _streamFinalized=true;
       if(_pendingRafHandle!==null){cancelAnimationFrame(_pendingRafHandle);_pendingRafHandle=null;_renderPending=false;}
       if(typeof finalizeThinkingCard==='function') finalizeThinkingCard();
+      _clearProgressStatus();
       // Application-level error sent explicitly by the server (rate limit, crash, etc.)
       // This is distinct from the SSE network 'error' event below.
       source.close();
@@ -625,6 +658,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
       if(S.session&&S.session.session_id===activeSid){
         S.activeStreamId=null;const _cbc=$('btnCancel');if(_cbc)_cbc.style.display='none';
       }
+      _clearProgressStatus();
       if(S.session&&S.session.session_id===activeSid){
         clearLiveToolCards();if(!assistantText)removeThinking();
         S.messages.push({role:'assistant',content:'*Task cancelled.*'});renderMessages();
@@ -642,6 +676,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
       if(session.active_stream_id||session.pending_user_message) return false;
       delete INFLIGHT[activeSid];clearInflight();clearInflightState(activeSid);stopApprovalPolling();stopClarifyPolling();
       _closeSource();
+      _clearProgressStatus();
       if(!_approvalSessionId||_approvalSessionId===activeSid) hideApprovalCard(true);
       if(!_clarifySessionId||_clarifySessionId===activeSid) hideClarifyCard(true);
       if(S.session&&S.session.session_id===activeSid){
@@ -674,6 +709,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
     _streamFinalized=true;
     if(_pendingRafHandle!==null){cancelAnimationFrame(_pendingRafHandle);_pendingRafHandle=null;_renderPending=false;}
     if(typeof finalizeThinkingCard==='function') finalizeThinkingCard();
+    _clearProgressStatus();
     delete INFLIGHT[activeSid];clearInflight();clearInflightState(activeSid);stopApprovalPolling();stopClarifyPolling();
     _closeSource();
     if(!_approvalSessionId||_approvalSessionId===activeSid) hideApprovalCard(true);
