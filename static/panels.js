@@ -577,6 +577,15 @@ async function loadWorkspaceList(){
   try{
     const data = await api('/api/workspaces');
     _workspaceList = data.workspaces || [];
+    // Keep the blank-page/default workspace display profile-aware.
+    // /api/settings.default_workspace is process/global-ish bootstrap data,
+    // but /api/workspaces returns the active profile's own saved workspace
+    // state. Without refreshing this value here, a page reload after switching
+    // profiles can keep showing the previous profile's workspace in the UI.
+    const profileWs = (typeof data.last === 'string' && data.last)
+      || (_workspaceList[0] && _workspaceList[0].path)
+      || '';
+    if (profileWs) S._profileDefaultWorkspace = profileWs;
     syncWorkspaceDisplays();
     return data;
   }catch(e){ return {workspaces:[], last:''}; }

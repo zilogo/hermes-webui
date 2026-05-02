@@ -140,6 +140,48 @@ class TestCreateProfileModes:
         assert cfg["model"]["api_key"] == "sk-managed-test"
         assert cfg["karmabox"]["managed_profile"] is True
 
+    def test_create_image_workbench_seeds_allowlist(self, tmp_path, monkeypatch):
+        import api.profiles as profiles
+
+        created = {}
+        seeded = {}
+
+        def _fake_create_profile(name, clone_from=None, clone_config=False, clone_all=False, no_alias=True):
+            profile_dir = tmp_path / "profiles" / name
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            created["profile_dir"] = profile_dir
+
+        def _fake_seed_profile_skills(profile_dir, quiet=True):
+            seeded["profile_dir"] = profile_dir
+            seeded["quiet"] = quiet
+            return {"copied": ["karmaboxpro-image-workbench"], "updated": [], "user_modified": [], "cleaned": []}
+
+        monkeypatch.setattr(profiles, "_DEFAULT_HERMES_HOME", tmp_path)
+        monkeypatch.setattr(profiles, "list_profiles_api", lambda: [])
+        monkeypatch.setitem(
+            sys.modules,
+            "hermes_cli.profiles",
+            types.SimpleNamespace(
+                create_profile=_fake_create_profile,
+                seed_profile_skills=_fake_seed_profile_skills,
+            ),
+        )
+
+        result = profiles.create_profile_api(
+            "image-workbench",
+            skill_allowlist=["karmaboxpro-image-workbench"],
+        )
+
+        allowlist_file = tmp_path / "profiles" / "image-workbench" / "skills" / ".bundled_allowlist.json"
+        assert allowlist_file.exists()
+        assert json.loads(allowlist_file.read_text()) == {
+            "skills": ["karmaboxpro-image-workbench"],
+        }
+        assert created["profile_dir"] == tmp_path / "profiles" / "image-workbench"
+        assert seeded["profile_dir"] == tmp_path / "profiles" / "image-workbench"
+        assert seeded["quiet"] is True
+        assert result["name"] == "image-workbench"
+
     def test_create_profile_managed_requires_karmabox_mode(self, tmp_path, monkeypatch):
         import api.profiles as profiles
 

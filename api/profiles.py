@@ -516,11 +516,25 @@ def _initialize_profile_workspace_state(profile_dir: Path) -> None:
     )
 
 
+def _seed_profile_skill_allowlist(profile_dir: Path, skill_names: list[str] | None) -> None:
+    """Persist a bundled-skill allowlist for a profile, if requested."""
+    if not skill_names:
+        return
+    skills_dir = profile_dir / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    allowlist_path = skills_dir / ".bundled_allowlist.json"
+    allowlist_path.write_text(
+        json.dumps({"skills": skill_names}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def create_profile_api(name: str, clone_from: str = None,
                        clone_config: bool = False,
                        create_mode: str = None,
                        base_url: str = None,
-                       api_key: str = None) -> dict:
+                       api_key: str = None,
+                       skill_allowlist: list[str] | None = None) -> dict:
     """Create a new profile. Returns the new profile info dict."""
     _validate_profile_name(name)
     create_mode = (create_mode or 'custom').strip().lower()
@@ -582,6 +596,7 @@ def create_profile_api(name: str, clone_from: str = None,
         managed_profile=(create_mode == 'managed'),
     )
     _initialize_profile_workspace_state(profile_path)
+    _seed_profile_skill_allowlist(profile_path, skill_allowlist)
 
     # Match CLI behaviour so WebUI-created profiles immediately get the
     # bundled skill set. Seed failures should not block profile creation.

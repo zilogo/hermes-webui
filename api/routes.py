@@ -1293,6 +1293,7 @@ def handle_post(handler, parsed) -> bool:
                 create_mode=create_mode,
                 base_url=base_url,
                 api_key=api_key,
+                skill_allowlist=(["karmaboxpro-image-workbench"] if name == "image-workbench" else None),
             )
             return j(handler, {"ok": True, "profile": result})
         except (ValueError, FileExistsError, RuntimeError) as e:
